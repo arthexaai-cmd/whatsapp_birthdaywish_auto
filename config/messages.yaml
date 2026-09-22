@@ -1,0 +1,32 @@
+# Template pool for birthday messages. {name} is replaced with the
+# recipient's first name (or `salutation` from the roster row, if set).
+# {wish} and any other {var} are expanded from the `vars` pool below.
+# A trailing emoji is appended ~60% of the time from `emoji`.
+
+onTime:
+  - "Happy birthday {name}! {wish} 🎂"
+  - "Hey {name}, happy birthday! {wish}"
+  - "{name}, wishing you a very happy birthday! {wish}"
+  - "Happy birthday {name}!! {wish}"
+  - "Many happy returns of the day, {name}! {wish}"
+  - "{name}, happy birthday to you! {wish}"
+
+belated:
+  - "Belated happy birthday {name}! {wish}"
+  - "{name}, sorry this is a day late — happy birthday! {wish}"
+  - "Just realised I missed it — happy (belated) birthday {name}! {wish}"
+
+vars:
+  wish:
+    - "Have a great year ahead."
+    - "Hope you have a wonderful day."
+    - "Wishing you health and happiness."
+    - "Hope this year brings you everything you're hoping for."
+    - "Have an amazing one!"
+    - "Hope it's a great one."
+
+emoji:
+  - "🎂"
+  - "🎉"
+  - "🥳"
+  - "✨"

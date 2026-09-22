@@ -1,0 +1,19 @@
+node_modules/
+.env
+*.log
+
+# Secrets — never commit
+google-service-account.json
+*-sa-key.json
+
+# Local runtime state. These also live under BOT_HOME by default,
+# but ignore them here too in case BOT_HOME is pointed inside the repo.
+.wa-birthday-bot/
+session/
+state/
+logs/
+
+# Local roster fallback
+data/*.xlsx
+data/*.xls
+!data/birthdays.example.xlsx

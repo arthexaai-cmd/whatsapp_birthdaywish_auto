@@ -1,0 +1,100 @@
+name: Birthday bot
+
+on:
+  schedule:
+    # 03:45 UTC ~= 09:15 IST. Start jitter (see config/config.yaml) pushes
+    # the actual first send later, so this is not a fixed public send time.
+    - cron: "45 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (schedule only, sends nothing)"
+        type: boolean
+        default: false
+      date_override:
+        description: "Pretend 'today' is this date (YYYY-MM-DD), for testing"
+        type: string
+        default: ""
+      ignore_ledger:
+        description: "Ignore the sent-ledger and resend (testing only!)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: birthday-bot
+  # A manual trigger queues behind an in-progress run instead of killing a
+  # half-finished send -- interrupting a WhatsApp Web session mid-batch is
+  # exactly the kind of erratic behavior that risks the account.
+  cancel-in-progress: false
+
+jobs:
+  send:
+    # Must run on your own machine (self-hosted runner), not a GitHub-hosted
+    # one: the WhatsApp Web session and a stable residential IP are required.
+    # See the plan doc for why hosted runners cannot do this job.
+    runs-on: [self-hosted, windows, whatsapp]
+    timeout-minutes: 420
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write Google service-account key
+        shell: pwsh
+        env:
+          GOOGLE_SA_KEY: ${{ secrets.GOOGLE_SA_KEY }}
+        run: |
+          Set-Content -Path google-service-account.json -Value $env:GOOGLE_SA_KEY -Encoding utf8
+
+      - name: Run birthday bot
+        shell: pwsh
+        env:
+          ROSTER_SOURCE: gsheet
+          GSHEET_ID: ${{ secrets.GSHEET_ID }}
+          GSHEET_TAB: ${{ vars.GSHEET_TAB }}
+          GOOGLE_APPLICATION_CREDENTIALS: ./google-service-account.json
+          SELF_NOTIFY_NUMBER: ${{ secrets.SELF_NOTIFY_NUMBER }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          $nodeArgs = @("src/index.js")
+          if ("${{ github.event.inputs.date_override }}" -ne "") {
+            $nodeArgs += "--date=${{ github.event.inputs.date_override }}"
+          }
+          if ("${{ github.event.inputs.ignore_ledger }}" -eq "true") {
+            $nodeArgs += "--ignore-ledger"
+          }
+          node @nodeArgs
+
+      - name: Clean up service-account key
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path google-service-account.json) { Remove-Item google-service-account.json -Force }
+
+      - name: Commit heartbeat (keeps the schedule alive)
+        # GitHub disables a scheduled workflow after 60 days with no repo
+        # activity. The full run log stays under BOT_HOME (outside the repo,
+        # per the checkout-wipes-the-workspace constraint above), so instead
+        # we commit a tiny heartbeat timestamp file on every run -- enough
+        # activity to keep the schedule enabled indefinitely with no manual
+        # upkeep.
+        if: always()
+        shell: pwsh
+        run: |
+          git config user.name "birthday-bot"
+          git config user.email "actions@users.noreply.github.com"
+          Get-Date -AsUTC -Format "o" | Set-Content -Path .last-run -Encoding utf8
+          git add .last-run
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "No heartbeat change to commit."
+          } else {
+            git commit -m "chore: heartbeat"
+            git push
+          }
