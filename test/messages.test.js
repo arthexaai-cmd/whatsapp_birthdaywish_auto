@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderMessage } from "../src/messages.js";
+import { renderMessage } from "../src/core/messages.js";
 
 const messagesConfig = {
   onTime: ["Happy birthday {name}! {wish}"],

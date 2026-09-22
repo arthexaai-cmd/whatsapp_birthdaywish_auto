@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeRoster, parseBirthdate } from "../src/roster.js";
+import { normalizeRoster, parseBirthdate } from "../src/core/roster.js";
 
 describe("parseBirthdate", () => {
   it("parses DD/MM/YYYY", () => {

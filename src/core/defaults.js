@@ -1,0 +1,73 @@
+// Default settings seeded into the `settings` table on first run. Mirrors
+// the old config/config.yaml structure from the CLI phase, now living in
+// the DB so the UI can read and edit it directly instead of hand-editing YAML.
+// Never re-applied once a key exists -- see electron/db.js's seedSettingsIfMissing.
+
+export const DEFAULT_SETTINGS = {
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
+
+  defaultCountry: "IN",
+  leapDayFallback: "feb28", // "feb28" | "mar1" -- how Feb 29 birthdays land in non-leap years
+
+  catchupDays: 2, // how many days back to keep retrying a missed birthday
+
+  // Daily schedule
+  scheduledTime: "09:15", // local HH:MM the scheduler aims to start a run
+  runAtLogin: true,
+  schedulingPaused: false,
+  catchUpOnLaunch: true, // if today's scheduled time already passed with no run, fire on next launch
+
+  // Pacing -- the anti-ban core. See src/core/pacing.js.
+  pacing: {
+    startJitterMinutes: [0, 75],
+    batchSize: [4, 7],
+    withinBatchSeconds: [40, 150],
+    betweenBatchMinutes: [14, 28],
+    typingMsPerChar: [45, 90],
+    dailyCap: 60,
+    quietHours: ["21:30", "08:30"],
+    warmupDays: 7,
+    warmupStartCap: 8,
+  },
+
+  retry: {
+    maxConsecutiveFailures: 2,
+    retryBackoffSeconds: [60, 120],
+  },
+
+  selfNotifyEnabled: true,
+  selfNotifyNumber: "",
+
+  // Set true the first time WhatsApp pairing ever succeeds. Lets the app
+  // treat a later disconnect (session expired, phone unlinked it) as a
+  // reconnect prompt on the Settings screen rather than dropping the user
+  // back into the full first-run wizard.
+  hasEverPaired: false,
+
+  // Consent screen must be accepted before any real (non-dry-run) send.
+  riskAcknowledged: false,
+
+  // UI-enforced ceiling so a user can't naively crank dailyCap to something
+  // that reads as bulk spam to WhatsApp.
+  dailyCapMax: 150,
+};
+
+/** Deep-ish merge: only fills in keys missing from `existing`, recursing one level for objects. */
+export function fillMissingDefaults(existing, defaults) {
+  const out = { ...existing };
+  for (const [key, value] of Object.entries(defaults)) {
+    if (!(key in out)) {
+      out[key] = value;
+    } else if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      out[key] &&
+      typeof out[key] === "object" &&
+      !Array.isArray(out[key])
+    ) {
+      out[key] = fillMissingDefaults(out[key], value);
+    }
+  }
+  return out;
+}

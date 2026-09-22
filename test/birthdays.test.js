@@ -7,7 +7,7 @@ import {
   matchBirthdays,
   dedupeAgainstLedger,
   isQuietHours,
-} from "../src/birthdays.js";
+} from "../src/core/birthdays.js";
 
 function person(overrides) {
   return {

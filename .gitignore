@@ -1,19 +1,15 @@
 node_modules/
-.env
 *.log
 
-# Secrets — never commit
-google-service-account.json
-*-sa-key.json
+# Build output
+dist-ui/
+dist-installer/
 
-# Local runtime state. These also live under BOT_HOME by default,
-# but ignore them here too in case BOT_HOME is pointed inside the repo.
+# Local dev DB / WhatsApp session (real app data lives in the OS userData
+# dir, but a dev run can end up writing here too -- never commit either).
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+wa-session/
 .wa-birthday-bot/
-session/
-state/
-logs/
-
-# Local roster fallback
-data/*.xlsx
-data/*.xls
-!data/birthdays.example.xlsx

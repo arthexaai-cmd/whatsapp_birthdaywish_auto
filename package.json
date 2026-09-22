@@ -1,29 +1,69 @@
 {
   "name": "whatsapp-birthday-bot",
-  "version": "1.0.0",
+  "productName": "Birthday Bot",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Sends birthday wishes over WhatsApp Web on a daily schedule, with human-like pacing.",
-  "engines": { "node": ">=20" },
+  "description": "Standalone desktop app: sends birthday wishes over WhatsApp Web on a schedule, with human-like pacing.",
+  "author": "arthexaai-cmd",
+  "main": "electron/main.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node src/index.js",
-    "login": "node scripts/login.js",
-    "doctor": "node scripts/doctor.js",
-    "dry": "cross-env DRY_RUN=true node src/index.js",
+    "dev:ui": "vite",
+    "dev": "concurrently -k \"npm:dev:ui\" \"npm:dev:electron\"",
+    "dev:electron": "wait-on tcp:5173 && cross-env ELECTRON_DEV=true electron .",
+    "build:ui": "vite build",
+    "build": "npm run build:ui && electron-builder",
     "test": "vitest run"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "google-auth-library": "^9.14.1",
-    "googleapis": "^144.0.0",
+    "electron-store": "^11.0.2",
     "libphonenumber-js": "^1.11.12",
-    "qrcode-terminal": "^0.12.0",
+    "@puppeteer/browsers": "^3.2.2",
+    "puppeteer-core": "^23.6.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "whatsapp-web.js": "^1.26.0",
     "xlsx": "^0.18.5",
     "yaml": "^2.5.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^9.0.1",
     "cross-env": "^7.0.3",
-    "vitest": "^2.1.1"
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.arthexa.birthdaybot",
+    "productName": "Birthday Bot",
+    "directories": {
+      "output": "dist-installer",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "src/core/**/*",
+      "dist-ui/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "config", "to": "config" }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
   }
 }
