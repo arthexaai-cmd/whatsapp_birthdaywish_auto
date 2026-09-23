@@ -59,6 +59,48 @@ function addPerson(db, overrides = {}) {
   });
 }
 
+describe("runEngine — applyStartJitter", () => {
+  it("applies no start delay when applyStartJitter is false, even with a wide jitter range configured", async () => {
+    const db = freshDb();
+    addPerson(db);
+    const settings = { ...settingsFor(), pacing: { ...settingsFor().pacing, startJitterMinutes: [50, 75] } };
+
+    const before = Date.now();
+    const result = await runEngine({
+      db,
+      settings,
+      dryRun: true,
+      dateOverride: "2026-03-14",
+      waClient: null,
+      applyStartJitter: false,
+    });
+
+    expect(result.scheduled).toHaveLength(1);
+    const waitMs = new Date(result.scheduled[0].sendAt).getTime() - before;
+    expect(waitMs).toBeLessThan(5000); // effectively immediate, not 50-75 minutes
+  });
+
+  it("applies the configured start jitter when applyStartJitter is true (the default)", async () => {
+    const db = freshDb();
+    addPerson(db);
+    const settings = { ...settingsFor(), pacing: { ...settingsFor().pacing, startJitterMinutes: [50, 75] } };
+
+    const before = Date.now();
+    const result = await runEngine({
+      db,
+      settings,
+      dryRun: true,
+      dateOverride: "2026-03-14",
+      waClient: null,
+      // applyStartJitter omitted -- defaults to true
+    });
+
+    const waitMinutes = (new Date(result.scheduled[0].sendAt).getTime() - before) / 60_000;
+    expect(waitMinutes).toBeGreaterThanOrEqual(50);
+    expect(waitMinutes).toBeLessThanOrEqual(75.1); // small slack for test execution time
+  });
+});
+
 describe("runEngine — dry run", () => {
   it("schedules matches, renders messages, sends nothing, writes no ledger rows", async () => {
     const db = freshDb();

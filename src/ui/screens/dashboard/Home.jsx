@@ -178,8 +178,14 @@ function describeEvent(e) {
       return `Loaded ${e.contactCount} contacts.`;
     case "matched":
       return `${e.matchCount} birthday(s) matched.`;
-    case "scheduled":
-      return `Scheduled ${e.scheduledCount} send(s)${e.droppedByCap ? `, ${e.droppedByCap} deferred by daily cap` : ""}.`;
+    case "scheduled": {
+      const base = `Scheduled ${e.scheduledCount} send(s)${e.droppedByCap ? `, ${e.droppedByCap} deferred by daily cap` : ""}.`;
+      if (!e.firstSendAt || e.scheduledCount === 0) return base;
+      const firstAt = new Date(e.firstSendAt);
+      const waitMs = firstAt.getTime() - Date.now();
+      const waitLabel = waitMs > 30_000 ? ` (in about ${Math.round(waitMs / 60_000)} min)` : "";
+      return `${base} First send at ${firstAt.toLocaleTimeString()}${waitLabel}.`;
+    }
     case "dry_run_complete":
       return `Dry run: ${e.preview.length} message(s) would be sent. ${e.preview
         .map((p) => `${p.person.name} at ${new Date(p.sendAt).toLocaleTimeString()}`)

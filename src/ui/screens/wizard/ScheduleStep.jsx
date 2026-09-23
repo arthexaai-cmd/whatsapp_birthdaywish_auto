@@ -18,7 +18,7 @@ export default function ScheduleStep({ settings, onSaved }) {
     <div className="stack">
       <h1>When should it run?</h1>
       <p className="muted">
-        Once a day, at roughly this time (a random delay of up to ~75 minutes is added automatically so sends
+        Once a day, at roughly this time (a random delay of up to ~20 minutes is added automatically so sends
         don&apos;t look machine-timed). The app runs quietly in the system tray so this works even with the window
         closed — just keep your computer on and connected.
       </p>

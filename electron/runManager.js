@@ -28,8 +28,14 @@ class RunManager extends EventEmitter {
    * @param {string} [opts.dateOverride]
    * @param {boolean} [opts.ignoreLedger]
    * @param {string} [opts.userDataPath] required for a real run (to resolve the browser)
+   * @param {'manual'|'scheduled'|'catch_up'} [opts.trigger] who started this run. 'manual'
+   *   (the default -- covers the dashboard's Run now/Dry run buttons and the tray's Run
+   *   now) skips the random start-jitter delay, since a human already introduced timing
+   *   randomness by clicking the button. 'scheduled'/'catch_up' keep the jitter, which
+   *   exists specifically so the automatic daily trigger doesn't fire at a fixed,
+   *   suspiciously exact time every day.
    */
-  async start({ db, dryRun = false, dateOverride = null, ignoreLedger = false, userDataPath }) {
+  async start({ db, dryRun = false, dateOverride = null, ignoreLedger = false, userDataPath, trigger = "manual" }) {
     if (this.active) {
       throw new Error("A run is already in progress.");
     }
@@ -64,6 +70,7 @@ class RunManager extends EventEmitter {
         ignoreLedger,
         waClient,
         signal: this.controller.signal,
+        applyStartJitter: trigger !== "manual",
         onProgress: (event) => this.emit("progress", event),
       });
 

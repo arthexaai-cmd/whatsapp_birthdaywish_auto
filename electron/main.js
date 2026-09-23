@@ -118,7 +118,12 @@ async function main() {
       if (runManager.isActive()) return; // a manual run is already going; don't collide
       mainWindow?.webContents.send("run:autoStarted", { reason });
       try {
-        const result = await runManager.start({ db, dryRun: false, userDataPath: app.getPath("userData") });
+        const result = await runManager.start({
+          db,
+          dryRun: false,
+          userDataPath: app.getPath("userData"),
+          trigger: reason, // "scheduled" or "catch_up" -- keeps the anti-pattern-detection start jitter
+        });
         notifyRunResult(result, reason);
       } catch (err) {
         notifyRunError(err, reason);

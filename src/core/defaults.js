@@ -19,7 +19,12 @@ export const DEFAULT_SETTINGS = {
 
   // Pacing -- the anti-ban core. See src/core/pacing.js.
   pacing: {
-    startJitterMinutes: [0, 75],
+    // Small enough to still defeat exact-second pattern matching (the actual
+    // anti-detection goal) without wasting a large chunk of the day as pure
+    // dead time before anything starts -- at a modest volume (a few dozen
+    // sends/day), betweenBatchMinutes below already spreads the run across
+    // a couple of hours on its own.
+    startJitterMinutes: [0, 20],
     batchSize: [4, 7],
     withinBatchSeconds: [40, 150],
     betweenBatchMinutes: [14, 28],

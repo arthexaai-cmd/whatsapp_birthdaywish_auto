@@ -87,6 +87,12 @@ function abortableSleep(ms, signal) {
  * @param {boolean} [opts.ignoreLedger]  testing only: resend even if already recorded
  * @param {object|null} opts.waClient    a ready whatsapp-web.js Client, or null for dry runs
  * @param {AbortSignal} [opts.signal]    cancels the run between sends (never mid-send)
+ * @param {boolean} [opts.applyStartJitter] whether to add the random startJitterMinutes delay
+ *   before the first send. Default true -- this exists so the *automatic* daily trigger
+ *   doesn't fire at a suspiciously exact time every day. A manually-triggered run (someone
+ *   clicking "Run now") already has human-introduced timing randomness, so callers pass
+ *   false there; skipping it also avoids the confusing "nothing happens for a while
+ *   with no explanation" experience on a manual test run.
  * @param {(event: object) => void} [opts.onProgress]
  */
 export async function runEngine({
@@ -97,6 +103,7 @@ export async function runEngine({
   ignoreLedger = false,
   waClient = null,
   signal,
+  applyStartJitter = true,
   onProgress = () => {},
 }) {
   const runStart = new Date();
@@ -125,13 +132,15 @@ export async function runEngine({
 
   const ledgerDays = countDistinctRunDays(db);
   const { batches, cap, droppedByCap } = batchMatches(matches, settings.pacing, ledgerDays);
-  const { scheduled, deferred } = buildSchedule(batches, settings.pacing, runStart, settings.timezone);
+  const pacingForRun = applyStartJitter ? settings.pacing : { ...settings.pacing, startJitterMinutes: [0, 0] };
+  const { scheduled, deferred } = buildSchedule(batches, pacingForRun, runStart, settings.timezone);
   onProgress({
     phase: "scheduled",
     scheduledCount: scheduled.length,
     deferredCount: deferred.length,
     cap,
     droppedByCap,
+    firstSendAt: scheduled[0]?.sendAt ?? null,
   });
 
   const messagesConfig = getMessagesConfig(db);
