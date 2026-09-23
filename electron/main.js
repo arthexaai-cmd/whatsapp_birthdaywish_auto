@@ -16,6 +16,16 @@ import { whatsappManager } from "./whatsappManager.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.ELECTRON_DEV === "true";
 
+// whatsapp-web.js occasionally rejects a promise internally (e.g. its own
+// session-cleanup logic racing a browser teardown) in a way we have no
+// handle on and cannot .catch() ourselves. Node's default behavior for an
+// unhandled rejection is just a console warning (not a crash) in this
+// context, but log it plainly rather than let a scary stack trace look
+// like the app broke -- it isn't fatal.
+process.on("unhandledRejection", (reason) => {
+  console.error("[main] unhandled rejection (non-fatal):", reason);
+});
+
 let mainWindow = null;
 let trayHandle = null;
 let scheduler = null;

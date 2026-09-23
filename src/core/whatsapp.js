@@ -43,6 +43,11 @@ export async function createClient({
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: sessionDir }),
     webVersionCache: webVersionCacheDir ? { type: "local", path: webVersionCacheDir } : undefined,
+    // Without this, the linked device shows up generically (e.g. "Chrome")
+    // in WhatsApp's own Settings > Linked Devices list on the phone --
+    // naming it clearly means it's obvious what it is and easy to find if
+    // you ever want to unlink it directly from the phone.
+    browserName: "Birthday Bot",
     puppeteer: {
       headless: true,
       executablePath,
@@ -65,11 +70,20 @@ export async function createClient({
 
     client.on("auth_failure", (msg) => {
       clearQrTimer();
+      // Tear down the underlying Puppeteer browser ourselves. Without this,
+      // the process (and its lock on the session's browser profile
+      // directory) leaks: whatsapp-web.js's own internal cleanup on a bad
+      // auth/disconnect tries to delete session files through
+      // LocalAuth.logout(), but that fails with EBUSY while this browser
+      // is still alive holding them open -- and the next connect attempt
+      // then fails with "browser is already running for <profile>".
+      client.destroy().catch(() => {});
       reject(new Error(`WhatsApp auth failure: ${msg}`));
     });
 
     client.on("disconnected", (reason) => {
       clearQrTimer();
+      client.destroy().catch(() => {}); // see auth_failure above
       reject(new Error(`WhatsApp disconnected: ${reason}`));
     });
 

@@ -60,4 +60,8 @@ contextBridge.exposeInMainWorld("api", {
     onRunNow: (callback) => on("tray:runNow", callback),
     onToggleScheduling: (callback) => on("tray:toggleScheduling", callback),
   },
+  clock: {
+    check: () => ipcRenderer.invoke("clock:check"),
+    openDateTimeSettings: () => ipcRenderer.invoke("clock:openDateTimeSettings"),
+  },
 });

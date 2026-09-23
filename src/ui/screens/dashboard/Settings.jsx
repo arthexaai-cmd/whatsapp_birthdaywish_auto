@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import ClockCard from "../../components/ClockCard.jsx";
 
 export default function Settings({ settings, waState, onSettingsChange, onReopenWizard }) {
   const [appInfo, setAppInfo] = useState(null);
@@ -29,6 +30,8 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
   return (
     <div className="stack">
       <h1>Settings</h1>
+
+      <ClockCard settings={settings} />
 
       <div className="card stack">
         <h3>WhatsApp</h3>

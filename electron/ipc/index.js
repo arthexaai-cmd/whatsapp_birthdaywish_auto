@@ -6,6 +6,7 @@ import { registerMessagesIpc } from "./messages.js";
 import { registerSettingsIpc } from "./settings.js";
 import { registerWhatsappIpc } from "./whatsapp.js";
 import { registerRunIpc } from "./run.js";
+import { registerClockIpc } from "./clock.js";
 
 export function registerAllIpc({ db, mainWindow, onScheduleChanged }) {
   registerContactsIpc(db);
@@ -13,4 +14,5 @@ export function registerAllIpc({ db, mainWindow, onScheduleChanged }) {
   registerSettingsIpc(db, { onScheduleChanged });
   registerWhatsappIpc(db, mainWindow);
   registerRunIpc(db, mainWindow);
+  registerClockIpc();
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { describeDrift } from "../../../core/clock.js";
 
 function StatusBadge({ waState }) {
   const map = {
@@ -23,6 +24,7 @@ export default function Home({ settings, waState }) {
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState(null);
   const [ignoreLedger, setIgnoreLedger] = useState(false);
+  const [clockDrift, setClockDrift] = useState(null);
   const logRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +36,13 @@ export default function Home({ settings, waState }) {
     });
     window.api.run.isActive().then(setRunning);
     const offRunNow = window.api.tray.onRunNow(() => startRun(false));
+    // Quiet, best-effort check -- birthday matching and scheduling read
+    // entirely from the system clock, so a wrong clock fails silently
+    // otherwise. Only surfaces a banner if it's actually off; never blocks
+    // anything if the check itself fails (e.g. no internet).
+    window.api.clock.check().then((r) => {
+      if (r?.ok === false) setClockDrift(r);
+    });
     return () => {
       off();
       offRunNow();
@@ -61,6 +70,7 @@ export default function Home({ settings, waState }) {
   };
 
   const cancel = () => window.api.run.cancel();
+  const openClockSettings = () => window.api.clock.openDateTimeSettings();
 
   return (
     <div className="stack">
@@ -68,6 +78,16 @@ export default function Home({ settings, waState }) {
         <h1>Dashboard</h1>
         <StatusBadge waState={waState} />
       </div>
+
+      {clockDrift && (
+        <div className="card row" style={{ justifyContent: "space-between", borderColor: "var(--danger)" }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--danger)" }}>
+            ⚠ This computer's clock appears to be off by about {describeDrift(clockDrift.driftMs)}. Birthday matching
+            and the daily schedule depend on it being correct.
+          </p>
+          <button onClick={openClockSettings}>Fix clock</button>
+        </div>
+      )}
 
       <div className="card stack">
         <div className="row" style={{ justifyContent: "space-between" }}>
