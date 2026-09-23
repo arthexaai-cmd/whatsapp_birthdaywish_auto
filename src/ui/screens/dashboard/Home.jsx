@@ -22,6 +22,7 @@ export default function Home({ settings, waState }) {
   const [events, setEvents] = useState([]);
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState(null);
+  const [ignoreLedger, setIgnoreLedger] = useState(false);
   const logRef = useRef(null);
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function Home({ settings, waState }) {
     setLastResult(null);
     setRunning(true);
     try {
-      const result = await window.api.run.start({ dryRun });
+      const result = await window.api.run.start({ dryRun, ignoreLedger });
       setLastResult(result);
     } catch (err) {
       setError(err.message || String(err));
@@ -68,28 +69,38 @@ export default function Home({ settings, waState }) {
         <StatusBadge waState={waState} />
       </div>
 
-      <div className="card row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Send today&apos;s birthdays</h3>
-          <p className="muted" style={{ margin: "4px 0 0" }}>
-            Scheduled daily at {settings?.scheduledTime} ({settings?.timezone})
-            {settings?.schedulingPaused && <span style={{ color: "var(--warn)" }}> — scheduling paused</span>}
-          </p>
-        </div>
-        <div className="row">
-          {running ? (
-            <button className="danger" onClick={cancel}>
-              Stop
-            </button>
-          ) : (
-            <>
-              <button onClick={() => startRun(true)}>Dry run</button>
-              <button className="primary" onClick={() => startRun(false)} disabled={waState?.status !== "ready"}>
-                Run now
+      <div className="card stack">
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Send today&apos;s birthdays</h3>
+            <p className="muted" style={{ margin: "4px 0 0" }}>
+              Scheduled daily at {settings?.scheduledTime} ({settings?.timezone})
+              {settings?.schedulingPaused && <span style={{ color: "var(--warn)" }}> — scheduling paused</span>}
+            </p>
+          </div>
+          <div className="row">
+            {running ? (
+              <button className="danger" onClick={cancel}>
+                Stop
               </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button onClick={() => startRun(true)}>Dry run</button>
+                <button className="primary" onClick={() => startRun(false)} disabled={waState?.status !== "ready"}>
+                  Run now
+                </button>
+              </>
+            )}
+          </div>
         </div>
+        {!running && (
+          <label className="row" style={{ cursor: "pointer", fontSize: 12 }}>
+            <input type="checkbox" checked={ignoreLedger} onChange={(e) => setIgnoreLedger(e.target.checked)} />
+            <span className="muted">
+              Ignore send history (testing only) — resend to people already messaged today instead of skipping them
+            </span>
+          </label>
+        )}
       </div>
 
       {error && (
@@ -115,7 +126,23 @@ export default function Home({ settings, waState }) {
         <div className="card">
           <h3>Last run</h3>
           {lastResult.summary ? (
+            // A real send: summary.text is the actual sent/failed/skipped report.
             <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{lastResult.summary.text}</pre>
+          ) : lastResult.scheduled?.length > 0 ? (
+            // A dry run that found matches: summary is always null for dry runs
+            // (it's only built after a real send), so show the preview instead
+            // of falling through to "nothing matched" -- nothing was sent.
+            <div className="stack">
+              <p className="muted" style={{ margin: 0 }}>
+                Dry run — nothing was sent. {lastResult.scheduled.length} message(s) would go out:
+              </p>
+              {lastResult.scheduled.map((p, i) => (
+                <div key={i} className="muted">
+                  {p.belated ? "[belated] " : ""}
+                  {p.person.name} at {new Date(p.sendAt).toLocaleTimeString()} — &quot;{p.text}&quot;
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="muted">No matching birthdays today.</p>
           )}

@@ -59,3 +59,7 @@ export function closeDb() {
 export function sessionDir() {
   return path.join(app.getPath("userData"), "wa-session");
 }
+
+export function webVersionCacheDir() {
+  return path.join(app.getPath("userData"), "wwebjs-cache");
+}

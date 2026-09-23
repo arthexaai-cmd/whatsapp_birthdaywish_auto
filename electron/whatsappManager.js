@@ -8,7 +8,7 @@ import fs from "node:fs";
 import QRCode from "qrcode";
 import { createClient } from "../src/core/whatsapp.js";
 import { findSystemBrowser, findFallbackChromium, downloadFallbackChromium } from "./browser.js";
-import { sessionDir } from "./db.js";
+import { sessionDir, webVersionCacheDir } from "./db.js";
 
 class WhatsappManager extends EventEmitter {
   constructor() {
@@ -72,6 +72,7 @@ class WhatsappManager extends EventEmitter {
     try {
       const client = await createClient({
         sessionDir: sessionDir(),
+        webVersionCacheDir: webVersionCacheDir(),
         executablePath: browser.executablePath,
         qrTimeoutMs,
         onQr: (qr) => {

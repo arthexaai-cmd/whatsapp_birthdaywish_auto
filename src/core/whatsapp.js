@@ -23,6 +23,10 @@ const { Client, LocalAuth } = pkg;
  *
  * @param {object} opts
  * @param {string} opts.sessionDir
+ * @param {string} [opts.webVersionCacheDir] where whatsapp-web.js caches the WhatsApp Web
+ *   client version it pins to. Defaults to a `./.wwebjs_cache/` relative to process.cwd()
+ *   if omitted -- unpredictable for a packaged app, so callers should always pass a path
+ *   under userData (see electron/whatsappManager.js).
  * @param {string} [opts.executablePath] path to system Chrome/Edge (see electron/browser.js)
  * @param {(qr: string) => void} [opts.onQr] called each time a new QR is issued
  * @param {(status: {phase: string, [k: string]: any}) => void} [opts.onStatus] loading/auth progress
@@ -30,6 +34,7 @@ const { Client, LocalAuth } = pkg;
  */
 export async function createClient({
   sessionDir,
+  webVersionCacheDir,
   executablePath,
   onQr,
   onStatus,
@@ -37,6 +42,7 @@ export async function createClient({
 }) {
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: sessionDir }),
+    webVersionCache: webVersionCacheDir ? { type: "local", path: webVersionCacheDir } : undefined,
     puppeteer: {
       headless: true,
       executablePath,
