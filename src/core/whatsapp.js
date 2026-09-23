@@ -138,8 +138,20 @@ function randInt([lo, hi]) {
  * like a human composing rather than a script firing instantly.
  */
 export async function sendWithTyping(client, chatId, text, typingMsPerCharRange) {
-  const chat = await client.getChatById(chatId);
-  await chat.sendStateTyping();
+  // Best-effort only: the "typing…" presence indicator is a cosmetic
+  // anti-detection touch, not something the actual send depends on. Both
+  // getChatById() and sendStateTyping() go through whatsapp-web.js's
+  // injected page.evaluate() calls into WhatsApp's internal (and
+  // frequently-changing) Store objects -- exactly the kind of call that
+  // breaks first when WhatsApp ships an internal change, well before the
+  // more heavily-used sendMessage()/getNumberId() paths do. A failure here
+  // must never block the real send.
+  try {
+    const chat = await client.getChatById(chatId);
+    await chat.sendStateTyping();
+  } catch (err) {
+    console.warn(`[whatsapp] typing-presence simulation failed (non-fatal, continuing to send): ${err.message}`);
+  }
   const perChar = randInt(typingMsPerCharRange);
   const delay = Math.min(text.length * perChar, 15_000); // cap so a long message doesn't stall the batch
   await new Promise((r) => setTimeout(r, delay));
