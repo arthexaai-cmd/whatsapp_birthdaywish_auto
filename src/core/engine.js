@@ -212,6 +212,14 @@ export async function runEngine({
       consecutiveFailures = 0;
       onProgress({ phase: "sent", person });
     } catch (err) {
+      // A send failure is very often whatsapp-web.js's injected browser-side
+      // code hitting a WhatsApp Web internal change (a minified
+      // "Evaluation failed: <x>" from Puppeteer's page.evaluate) -- .message
+      // alone can be as unhelpful as a single letter. Log the full error
+      // (stack included) to the console so it's actually diagnosable; the
+      // ledger/UI keep just the message for conciseness.
+      console.error(`[engine] send failed for ${person.name} (${person.phoneE164}):`, err);
+      const message = err.message || String(err);
       recordSend(db, {
         runId,
         contactId: person.id,
@@ -220,12 +228,12 @@ export async function runEngine({
         phone: person.phoneE164,
         occurrence,
         status: "failed",
-        error: err.message,
+        error: message,
         belated: item.belated,
       });
-      results.push({ person, belated: item.belated, status: "failed", reason: err.message });
+      results.push({ person, belated: item.belated, status: "failed", reason: message });
       consecutiveFailures++;
-      onProgress({ phase: "send_failed", person, error: err.message, consecutiveFailures });
+      onProgress({ phase: "send_failed", person, error: message, consecutiveFailures });
       if (consecutiveFailures >= settings.retry.maxConsecutiveFailures) {
         onProgress({ phase: "aborted_consecutive_failures", consecutiveFailures });
         break;
