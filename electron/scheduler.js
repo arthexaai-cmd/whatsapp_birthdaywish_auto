@@ -1,13 +1,22 @@
 // Electron glue around the pure date-math in src/core/schedule.js: arms a
-// real timer for the next fire time, re-arming daily, and hooks
+// wall-clock poll for the next fire time, re-arming daily, and hooks
 // powerMonitor's 'resume' event so a run missed during sleep still triggers
-// a catch-up check on wake. The actual send logic (connect WhatsApp, run
-// the engine) is supplied by the caller via onFire.
+// a catch-up check on wake. What firing does (send in automatic mode, a
+// reminder notification in manual mode -- see scheduledAction) is supplied
+// by the caller via onFire.
 
 import { powerMonitor } from "electron";
-import { computeTodayFireDate, computeNextFireDate, hasRunToday } from "../src/core/schedule.js";
+import {
+  computeTodayFireDate,
+  computeNextFireDate,
+  hasRunToday,
+  evaluateSchedulerTick,
+  scheduledAction,
+} from "../src/core/schedule.js";
 
-const MAX_TIMEOUT_MS = 24 * 60 * 60 * 1000 + 60_000; // scheduler always fires within ~24h, cap generously
+// How often the wall clock is checked against the armed fire time. Precision
+// doesn't matter much -- every run adds its own random start jitter anyway.
+const TICK_MS = 30_000;
 
 export class Scheduler {
   constructor({ db, getSettings, onFire }) {
@@ -16,6 +25,7 @@ export class Scheduler {
     this.onFire = onFire;
     this.timer = null;
     this.nextFireAt = null;
+    this.firing = false;
   }
 
   start() {
@@ -30,7 +40,7 @@ export class Scheduler {
   }
 
   stop() {
-    if (this.timer) clearTimeout(this.timer);
+    if (this.timer) clearInterval(this.timer);
     this.timer = null;
   }
 
@@ -44,35 +54,65 @@ export class Scheduler {
   }
 
   _arm() {
-    if (this.timer) clearTimeout(this.timer);
     const settings = this.getSettings();
-    if (settings.schedulingPaused) {
+    try {
+      this.nextFireAt = scheduledAction(settings) === "none" ? null : computeNextFireDate(settings);
+    } catch (err) {
+      // Bad stored settings must never take the app down or spam errors; the
+      // Schedule tab validates new values, so this only guards old data.
+      console.error("[scheduler] could not compute the next fire time:", err);
       this.nextFireAt = null;
+    }
+    // Poll the wall clock rather than one long setTimeout -- see
+    // evaluateSchedulerTick for why (timers ignore OS clock changes).
+    if (!this.timer) this.timer = setInterval(() => this._tick(), TICK_MS);
+  }
+
+  _tick() {
+    if (this.firing) return; // a scheduled run is still in progress
+    let decision;
+    try {
+      decision = evaluateSchedulerTick(this.nextFireAt, this.getSettings());
+    } catch (err) {
+      console.error("[scheduler] tick failed:", err);
       return;
     }
-    const next = computeNextFireDate(settings);
-    this.nextFireAt = next;
-    const delay = Math.min(Math.max(next.getTime() - Date.now(), 0), MAX_TIMEOUT_MS);
-    this.timer = setTimeout(() => this._fire(), delay);
+    const { fire, nextFireAt } = decision;
+    this.nextFireAt = nextFireAt;
+    if (fire) this._fire();
   }
 
   async _fire() {
+    this.firing = true;
     try {
       await this.onFire({ reason: "scheduled" });
     } finally {
-      this._arm(); // always re-arm for the next day, even if this run failed
+      this.firing = false;
     }
   }
 
   _maybeCatchUp() {
+    try {
+      this._maybeCatchUpUnsafe();
+    } catch (err) {
+      console.error("[scheduler] catch-up check failed:", err);
+    }
+  }
+
+  _maybeCatchUpUnsafe() {
     const settings = this.getSettings();
-    if (settings.schedulingPaused || !settings.catchUpOnLaunch) return;
+    const action = scheduledAction(settings);
+    if (action === "none") return;
+    // catchUpOnLaunch governs automatic *sends* only. A manual-mode reminder
+    // is always safe to show late (it sends nothing), and onFire itself
+    // de-dupes reminders to once a day.
+    if (action === "send" && !settings.catchUpOnLaunch) return;
 
     const now = new Date();
     const todayFire = computeTodayFireDate(settings, now);
-    const alreadyPassed = todayFire.getTime() <= now.getTime();
+    if (todayFire.getTime() > now.getTime()) return;
 
-    if (alreadyPassed && !hasRunToday(this.db, settings.timezone, now)) {
+    if (action === "remind" || !hasRunToday(this.db, settings.timezone, now)) {
       this.onFire({ reason: "catch_up" });
     }
   }

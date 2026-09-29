@@ -5,6 +5,22 @@
 
 import { listRuns } from "./db.js";
 
+/** True when Intl accepts this IANA timezone name (a typo would make every date computation throw). */
+export function isValidTimezone(tz) {
+  if (typeof tz !== "string" || !tz) return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The configured timezone, or the machine's own if the stored value is not a real one. */
+function safeTimezone(tz) {
+  return isValidTimezone(tz) ? tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 function parseHHMM(hhmm) {
   const [h, m] = hhmm.split(":").map(Number);
   return { h, m };
@@ -18,7 +34,7 @@ function parseHHMM(hhmm) {
  */
 export function computeTodayFireDate(settings, now = new Date()) {
   const { h, m } = parseHHMM(settings.scheduledTime);
-  const tz = settings.timezone;
+  const tz = safeTimezone(settings.timezone);
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -58,8 +74,48 @@ export function computeNextFireDate(settings, now = new Date()) {
   return computeTodayFireDate(settings, tomorrowNow);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * What the daily trigger (and the launch-time catch-up) should do:
+ * "send" in automatic mode, "remind" in manual mode with reminders on,
+ * "none" otherwise. schedulingPaused suppresses both.
+ *
+ * @returns {"send" | "remind" | "none"}
+ */
+export function scheduledAction(settings) {
+  if (settings.schedulingPaused) return "none";
+  if (settings.sendMode === "auto") return "send";
+  return settings.reminderEnabled === false ? "none" : "remind";
+}
+
+/**
+ * One scheduler tick: given the currently-armed fire time, decide whether to
+ * fire now and what to arm next. electron/scheduler.js calls this on a short
+ * interval instead of relying on one long setTimeout, because timers count
+ * elapsed (monotonic) time and ignore wall-clock changes: if the OS clock is
+ * corrected or changed while the app runs, a 24h timeout armed beforehand
+ * would still fire ~24 *real* hours later -- i.e. at the wrong local time, or
+ * a day late. Comparing against the wall clock every tick follows the clock.
+ *
+ * @returns {{ fire: boolean, nextFireAt: Date|null }}
+ */
+export function evaluateSchedulerTick(nextFireAt, settings, now = new Date()) {
+  if (scheduledAction(settings) === "none") return { fire: false, nextFireAt: null };
+  if (!nextFireAt) return { fire: false, nextFireAt: computeNextFireDate(settings, now) };
+  if (now.getTime() >= nextFireAt.getTime()) {
+    return { fire: true, nextFireAt: computeNextFireDate(settings, now) };
+  }
+  // The armed time can never legitimately be more than a day out; if it is,
+  // the clock moved backwards -- re-derive it from the new wall clock.
+  if (nextFireAt.getTime() - now.getTime() > DAY_MS + 60_000) {
+    return { fire: false, nextFireAt: computeNextFireDate(settings, now) };
+  }
+  return { fire: false, nextFireAt };
+}
+
 function todayKey(tz, now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+  return new Intl.DateTimeFormat("en-CA", { timeZone: safeTimezone(tz), year: "numeric", month: "2-digit", day: "2-digit" }).format(
     now
   );
 }
@@ -75,6 +131,6 @@ export function hasRunToday(db, tz, now = new Date()) {
   const today = todayKey(tz, now);
   const runs = listRuns(db, 20);
   return runs.some(
-    (r) => (r.status === "completed" || r.status === "cancelled") && r.started_at.slice(0, 10) === today
+    (r) => (r.status === "completed" || r.status === "cancelled") && todayKey(tz, new Date(r.started_at)) === today
   );
 }

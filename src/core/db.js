@@ -194,8 +194,24 @@ export function upsertContact(db, c) {
   return { id: info.lastInsertRowid, action: "added" };
 }
 
+/**
+ * Delete a contact but keep their send history. sends.contact_id references
+ * contacts(id) (and electron/db.js turns foreign_keys ON), so a contact who
+ * was ever messaged can't be deleted while rows still point at them. Detach
+ * those rows first: they carry their own copy of name/phone, so History and
+ * Reports stay complete, and the ledger_key (phone-based) is untouched -- so
+ * re-adding the same person later still can't double-send a birthday.
+ */
 export function deleteContact(db, id) {
-  db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
+  db.exec("BEGIN");
+  try {
+    db.prepare("UPDATE sends SET contact_id = NULL WHERE contact_id = ?").run(id);
+    db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 /**
@@ -210,7 +226,16 @@ export function importRosterRows(db, rows, { defaultCountry = "IN", dryRun = fal
   let updated = 0;
   if (!dryRun) {
     for (const p of people) {
-      const result = upsertContact(db, { ...p, skip: false });
+      // A re-import must not undo edits made in the app: keep an existing
+      // contact's skip flag, and keep their custom message / salutation when
+      // the sheet leaves those cells blank.
+      const existing = db.prepare("SELECT skip, custom_message, salutation FROM contacts WHERE phone_e164 = ?").get(p.phoneE164);
+      const result = upsertContact(db, {
+        ...p,
+        skip: existing ? !!existing.skip : false,
+        customMessage: p.customMessage ?? existing?.custom_message ?? null,
+        salutation: p.salutation ?? existing?.salutation ?? null,
+      });
       if (result.action === "added") added++;
       else updated++;
     }
@@ -303,6 +328,23 @@ export function getRunSends(db, runId) {
   return db.prepare("SELECT * FROM sends WHERE run_id = ? ORDER BY id").all(runId);
 }
 
+/** Every recorded send with its run's start time/status, newest first. */
+export function listAllSendsWithRuns(db) {
+  return db
+    .prepare(
+      `SELECT s.*, r.started_at AS run_started_at, r.status AS run_status
+       FROM sends s JOIN runs r ON r.id = s.run_id
+       ORDER BY s.sent_at DESC, s.id DESC`
+    )
+    .all();
+}
+
+/** Map of ledger_key -> recorded status (ledger_key is UNIQUE, so one row each). */
+export function sendStatusByLedgerKey(db) {
+  const rows = db.prepare("SELECT ledger_key, status FROM sends").all();
+  return new Map(rows.map((r) => [r.ledger_key, r.status]));
+}
+
 /**
  * Record a send outcome. Returns { recorded: true } normally, or
  * { recorded: false, reason: 'duplicate' } if this ledger_key was already
@@ -310,12 +352,25 @@ export function getRunSends(db, runId) {
  * this just turns the constraint violation into a clean result instead of
  * throwing, since a caller retrying after a crash should not treat "already
  * recorded" as an error.
+ *
+ * Exception: a row still at status 'failed' is overwritten in place. A
+ * failure isn't terminal (see loadTerminalLedgerKeys), so a later run retries
+ * it -- and that retry's outcome must replace the 'failed' row. Otherwise a
+ * successful retry would be dropped as a "duplicate", the ledger would keep
+ * saying 'failed', and the next run inside the catch-up window would send
+ * the same wish again. Terminal rows ('sent', 'not_on_whatsapp') are never
+ * overwritten.
  */
 export function recordSend(db, entry) {
   try {
-    db.prepare(
+    const info = db.prepare(
       `INSERT INTO sends (run_id, contact_id, ledger_key, name, phone, occurrence, status, error, belated, sent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(ledger_key) DO UPDATE SET
+         run_id = excluded.run_id, contact_id = excluded.contact_id, name = excluded.name,
+         phone = excluded.phone, status = excluded.status, error = excluded.error,
+         belated = excluded.belated, sent_at = excluded.sent_at
+       WHERE sends.status = 'failed'`
     ).run(
       entry.runId,
       entry.contactId ?? null,
@@ -328,6 +383,8 @@ export function recordSend(db, entry) {
       entry.belated ? 1 : 0,
       new Date().toISOString()
     );
+    // 0 changes: the key exists with a terminal status, so the upsert's WHERE skipped it.
+    if (info.changes === 0) return { recorded: false, reason: "duplicate" };
     return { recorded: true };
   } catch (err) {
     if (String(err.message).includes("UNIQUE constraint failed")) {

@@ -98,6 +98,30 @@ describe("contacts upsert", () => {
     deleteContact(db, id);
     expect(listContacts(db)).toHaveLength(0);
   });
+
+  it("deletes a contact who has send history, keeping the history and the ledger", () => {
+    const db = freshDb();
+    db.exec("PRAGMA foreign_keys = ON;"); // as electron/db.js opens the real DB
+    const { id } = upsertContact(db, { name: "A", phoneE164: "+919812345678", birthMonth: 1, birthDay: 1 });
+    recordSend(db, {
+      runId: startRun(db),
+      contactId: id,
+      ledgerKey: "+919812345678:2026-01-01",
+      name: "A",
+      phone: "+919812345678",
+      occurrence: "2026-01-01",
+      status: "sent",
+    });
+
+    deleteContact(db, id);
+
+    expect(listContacts(db)).toHaveLength(0);
+    const rows = db.prepare("SELECT name, phone, contact_id FROM sends").all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "A", phone: "+919812345678", contact_id: null });
+    // Still counts as sent, so re-adding the same number can't double-send.
+    expect(loadTerminalLedgerKeys(db).has("+919812345678:2026-01-01")).toBe(true);
+  });
 });
 
 describe("importRosterRows", () => {
@@ -150,6 +174,38 @@ describe("ledger idempotency via sends.ledger_key", () => {
     const keys = loadTerminalLedgerKeys(db);
     expect(keys.has(entry.ledgerKey)).toBe(true);
     expect(keys.size).toBe(1);
+  });
+
+  it("lets a successful retry overwrite a failed entry, so it is never sent again", () => {
+    const db = freshDb();
+    const entry = {
+      contactId: null,
+      ledgerKey: "+919812345678:2026-03-14",
+      name: "A",
+      phone: "+919812345678",
+      occurrence: "2026-03-14",
+      belated: false,
+    };
+    const run1 = startRun(db, { dryRun: false });
+    expect(recordSend(db, { ...entry, runId: run1, status: "failed", error: "boom" }).recorded).toBe(true);
+    expect(loadTerminalLedgerKeys(db).has(entry.ledgerKey)).toBe(false);
+
+    const run2 = startRun(db, { dryRun: false });
+    expect(recordSend(db, { ...entry, runId: run2, status: "sent", belated: true }).recorded).toBe(true);
+    expect(loadTerminalLedgerKeys(db).has(entry.ledgerKey)).toBe(true);
+
+    const rows = db.prepare("SELECT * FROM sends").all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "sent", error: null, belated: 1, run_id: run2 });
+  });
+
+  it("never overwrites a terminal entry, even with a later failure", () => {
+    const db = freshDb();
+    const runId = startRun(db, { dryRun: false });
+    const entry = { runId, ledgerKey: "k", name: "A", phone: "+1", occurrence: "2026-03-14" };
+    recordSend(db, { ...entry, status: "not_on_whatsapp" });
+    expect(recordSend(db, { ...entry, status: "failed", error: "x" })).toEqual({ recorded: false, reason: "duplicate" });
+    expect(db.prepare("SELECT status FROM sends").get().status).toBe("not_on_whatsapp");
   });
 
   it("excludes failed (non-terminal) entries from the terminal ledger", () => {

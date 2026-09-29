@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { friendlyError } from "../../errors.js";
+import ImportErrors from "../../components/ImportErrors.jsx";
 
 const EMPTY_FORM = { id: null, name: "", phoneE164: "", birthMonth: "", birthDay: "", birthYear: "", customMessage: "", salutation: "", skip: false };
 
@@ -43,27 +45,44 @@ export default function Contacts() {
       setForm(null);
       await load();
     } catch (err) {
-      setError(err.message || String(err));
+      setError(friendlyError(err));
     }
   };
 
   const remove = async (id) => {
-    await window.api.contacts.delete(id);
-    await load();
+    setError(null);
+    try {
+      await window.api.contacts.delete(id);
+      await load();
+    } catch (err) {
+      setError(friendlyError(err));
+    }
   };
 
   const pickImport = async () => {
-    const path = await window.api.contacts.pickExcelFile();
-    if (!path) return;
-    setImportPath(path);
-    setImportPreview(await window.api.contacts.previewImport(path));
+    setError(null);
+    try {
+      const path = await window.api.contacts.pickExcelFile();
+      if (!path) return;
+      setImportPath(path);
+      setImportPreview(await window.api.contacts.previewImport(path));
+    } catch (err) {
+      setImportPreview(null);
+      setImportPath(null);
+      setError(friendlyError(err));
+    }
   };
 
   const confirmImport = async () => {
-    await window.api.contacts.confirmImport(importPath);
-    setImportPreview(null);
-    setImportPath(null);
-    await load();
+    setError(null);
+    try {
+      await window.api.contacts.confirmImport(importPath);
+      setImportPreview(null);
+      setImportPath(null);
+      await load();
+    } catch (err) {
+      setError(friendlyError(err));
+    }
   };
 
   return (
@@ -78,6 +97,8 @@ export default function Contacts() {
         </div>
       </div>
 
+      {error && !form && <p style={{ color: "var(--danger)", margin: 0 }}>{error}</p>}
+
       {importPreview && (
         <div className="card stack">
           <h3>Import preview</h3>
@@ -86,6 +107,7 @@ export default function Contacts() {
             <span className="badge warn">{importPreview.updated} to update</span>
             {importPreview.errors.length > 0 && <span className="badge danger">{importPreview.errors.length} errors</span>}
           </div>
+          <ImportErrors errors={importPreview.errors} />
           <div className="row">
             <button
               onClick={() => {
@@ -95,7 +117,11 @@ export default function Contacts() {
             >
               Cancel
             </button>
-            <button className="primary" onClick={confirmImport}>
+            <button
+              className="primary"
+              onClick={confirmImport}
+              disabled={importPreview.added + importPreview.updated === 0}
+            >
               Import
             </button>
           </div>

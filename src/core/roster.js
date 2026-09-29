@@ -49,7 +49,18 @@ function cell(row, idx, name) {
  */
 export function parseBirthdate(raw) {
   if (raw instanceof Date && !isNaN(raw)) {
-    return { month: raw.getMonth() + 1, day: raw.getDate(), year: null };
+    // SheetJS's cellDates conversion can land a few seconds *before* local
+    // midnight (e.g. 29 Sep -> 28 Sep 23:59:50 in IST), which would shift
+    // the birthday a day early. Excel dates are whole days, so round to the
+    // nearest one by reading the date at noon-ish.
+    const d = new Date(raw.getTime() + 12 * 60 * 60 * 1000);
+    return { month: d.getMonth() + 1, day: d.getDate(), year: null };
+  }
+  if (typeof raw === "number" && raw >= 1 && raw < 2958466) {
+    // Raw Excel serial date (cell not formatted as a date). Day 0 is
+    // 1899-12-30 once Excel's fake 1900-02-29 is accounted for.
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000);
+    return finalizeDate(d.getUTCMonth() + 1, d.getUTCDate(), null);
   }
   const s = String(raw ?? "").trim();
   if (!s) return null;
@@ -96,7 +107,11 @@ function finalizeDate(month, day, year) {
 export function normalizeRow(row, idx, rowNum, defaultCountry) {
   const name = cell(row, idx, "name");
   const phoneRaw = cell(row, idx, "phone");
-  const birthdateRaw = cell(row, idx, "birthdate") ?? row[idx["birthdate"]];
+  // A real Excel date cell arrives as a Date (or a bare serial number if the
+  // cell isn't date-formatted); cell() would stringify it into something
+  // parseBirthdate can't read, so pass those through untouched.
+  const bdCell = row[idx["birthdate"]];
+  const birthdateRaw = bdCell instanceof Date || typeof bdCell === "number" ? bdCell : cell(row, idx, "birthdate");
   const skip = cell(row, idx, "skip");
   const customMessage = cell(row, idx, "custom_message") ?? null;
   const salutation = cell(row, idx, "salutation") ?? null;
@@ -161,4 +176,47 @@ export function normalizeRoster(rows, { defaultCountry } = { defaultCountry: "IN
   });
 
   return { people, errors, skipped };
+}
+
+/**
+ * Validate a contact coming from the Add/Edit form (the IPC boundary): the
+ * renderer is untrusted, and an empty field arrives as 0 / NaN. Returns a
+ * cleaned copy or throws an Error with a user-readable message.
+ * The phone is validated separately (contacts.js) because it needs the
+ * configured default country.
+ */
+export function validateContactInput(c) {
+  if (!c || typeof c !== "object") throw new Error("Invalid contact: nothing to save.");
+  const name = typeof c.name === "string" ? c.name.trim() : "";
+  if (!name) throw new Error("Invalid contact: name is required.");
+  if (name.length > 200) throw new Error("Invalid contact: name is too long.");
+
+  const month = Number(c.birthMonth);
+  const day = Number(c.birthDay);
+  if (!Number.isInteger(month) || !Number.isInteger(day) || !finalizeDate(month, day, null)) {
+    throw new Error("Invalid contact: birth month and day must be a real date (for example 14 / 3).");
+  }
+
+  let year = null;
+  if (c.birthYear !== null && c.birthYear !== undefined && c.birthYear !== "") {
+    year = Number(c.birthYear);
+    if (!Number.isInteger(year) || year < 1900 || year > new Date().getFullYear()) {
+      throw new Error("Invalid contact: birth year must be between 1900 and this year, or left blank.");
+    }
+  }
+  const text = (v, max, label) => {
+    if (v === null || v === undefined || v === "") return null;
+    if (typeof v !== "string" || v.length > max) throw new Error(`Invalid contact: ${label} is too long.`);
+    return v;
+  };
+  return {
+    ...c,
+    name,
+    birthMonth: month,
+    birthDay: day,
+    birthYear: year,
+    customMessage: text(c.customMessage, 2000, "the custom message"),
+    salutation: text(c.salutation, 50, "the salutation"),
+    skip: !!c.skip,
+  };
 }

@@ -4,6 +4,7 @@ import Contacts from "./dashboard/Contacts.jsx";
 import Messages from "./dashboard/Messages.jsx";
 import Schedule from "./dashboard/Schedule.jsx";
 import History from "./dashboard/History.jsx";
+import Reports from "./dashboard/Reports.jsx";
 import Settings from "./dashboard/Settings.jsx";
 
 const TABS = [
@@ -12,6 +13,7 @@ const TABS = [
   { key: "messages", label: "Messages" },
   { key: "schedule", label: "Schedule" },
   { key: "history", label: "History" },
+  { key: "reports", label: "Reports" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -38,11 +40,12 @@ export default function Dashboard({ settings, waState, onSettingsChange, onReope
         </div>
       </div>
       <div className="main-content">
-        {tab === "home" && <Home settings={settings} waState={waState} />}
+        {tab === "home" && <Home settings={settings} waState={waState} onReopenWizard={onReopenWizard} />}
         {tab === "contacts" && <Contacts />}
         {tab === "messages" && <Messages />}
         {tab === "schedule" && <Schedule settings={settings} onSettingsChange={onSettingsChange} />}
         {tab === "history" && <History />}
+        {tab === "reports" && <Reports />}
         {tab === "settings" && (
           <Settings settings={settings} waState={waState} onSettingsChange={onSettingsChange} onReopenWizard={onReopenWizard} />
         )}

@@ -2,15 +2,21 @@
 // electron/ipc/index.js. All handlers are thin -- the actual logic lives in
 // src/core/db.js and src/core/xlsx.js, kept Electron-agnostic and tested.
 
-import { ipcMain, dialog } from "electron";
+import { app, ipcMain, dialog, shell } from "electron";
+import path from "node:path";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { listContacts, upsertContact, deleteContact, importRosterRows } from "../../src/core/db.js";
-import { readXlsxRows } from "../../src/core/xlsx.js";
+import { readXlsxRows, writeSampleXlsx } from "../../src/core/xlsx.js";
+import { validateContactInput } from "../../src/core/roster.js";
+import { ImportGuard } from "../../src/core/importGuard.js";
 
 export function registerContactsIpc(db) {
+  const importGuard = new ImportGuard();
+
   ipcMain.handle("contacts:list", () => listContacts(db));
 
-  ipcMain.handle("contacts:upsert", (event, contact) => {
+  ipcMain.handle("contacts:upsert", (event, rawContact) => {
+    const contact = validateContactInput(rawContact); // month/day/year/name checked server-side too
     // Normalize the phone the same way Excel import does (roster.js), so a
     // manually-added contact and an imported one are never treated as
     // different people just because of formatting.
@@ -33,17 +39,35 @@ export function registerContactsIpc(db) {
       filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
+    importGuard.pick(result.filePaths[0]);
     return result.filePaths[0];
   });
 
+  ipcMain.handle("contacts:saveSampleFile", async () => {
+    const result = await dialog.showSaveDialog({
+      title: "Save sample contacts file",
+      defaultPath: path.join(app.getPath("documents"), "birthday-contacts.xlsx"),
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    writeSampleXlsx(result.filePath);
+    shell.showItemInFolder(result.filePath);
+    return result.filePath;
+  });
+
   ipcMain.handle("contacts:previewImport", (event, filePath) => {
+    importGuard.assertPicked(filePath);
     const rows = readXlsxRows(filePath);
+    importGuard.recordPreview(filePath);
     return importRosterRows(db, rows, { defaultCountry: getDefaultCountry(db), dryRun: true });
   });
 
   ipcMain.handle("contacts:confirmImport", (event, filePath) => {
+    importGuard.assertUnchangedSincePreview(filePath);
     const rows = readXlsxRows(filePath);
-    return importRosterRows(db, rows, { defaultCountry: getDefaultCountry(db), dryRun: false });
+    const result = importRosterRows(db, rows, { defaultCountry: getDefaultCountry(db), dryRun: false });
+    importGuard.reset();
+    return result;
   });
 }
 

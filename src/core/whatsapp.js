@@ -61,37 +61,46 @@ export async function createClient({
     qrTimer = null;
   };
 
+  let settled = false;
+  let onReady, onAuthFailure, onDisconnected, onQrEvent, onLoading;
+
   const ready = new Promise((resolve, reject) => {
-    client.on("ready", () => {
+    // Every failure path goes through here. It tears down the underlying
+    // Puppeteer browser and *waits* for it to exit before rejecting.
+    // Without this the process (and its lock on the session's browser
+    // profile directory) leaks: whatsapp-web.js's own cleanup tries to
+    // delete session files via LocalAuth.logout(), which fails with EBUSY
+    // while this browser still holds them open -- and the next connect
+    // attempt then fails with "browser is already running for <profile>".
+    // Waiting also means a caller that reacts to a LOGOUT by deleting the
+    // session directory isn't racing a still-running browser.
+    const fail = async (err) => {
+      if (settled) return;
+      settled = true;
+      clearQrTimer();
+      await client.destroy().catch(() => {});
+      reject(err);
+    };
+
+    onReady = () => {
+      if (settled) return;
+      settled = true;
       clearQrTimer();
       onStatus?.({ phase: "ready" });
       resolve();
-    });
+    };
 
-    client.on("auth_failure", (msg) => {
-      clearQrTimer();
-      // Tear down the underlying Puppeteer browser ourselves. Without this,
-      // the process (and its lock on the session's browser profile
-      // directory) leaks: whatsapp-web.js's own internal cleanup on a bad
-      // auth/disconnect tries to delete session files through
-      // LocalAuth.logout(), but that fails with EBUSY while this browser
-      // is still alive holding them open -- and the next connect attempt
-      // then fails with "browser is already running for <profile>".
-      client.destroy().catch(() => {});
-      reject(new Error(`WhatsApp auth failure: ${msg}`));
-    });
+    onAuthFailure = (msg) => fail(new Error(`WhatsApp auth failure: ${msg}`));
 
-    client.on("disconnected", (reason) => {
-      clearQrTimer();
-      client.destroy().catch(() => {}); // see auth_failure above
-      reject(new Error(`WhatsApp disconnected: ${reason}`));
-    });
+    onDisconnected = (reason) => {
+      const err = new Error(`WhatsApp disconnected: ${reason}`);
+      err.reason = reason;
+      fail(err);
+    };
 
-    client.on("loading_screen", (percent, message) => {
-      onStatus?.({ phase: "loading", percent, message });
-    });
+    onLoading = (percent, message) => onStatus?.({ phase: "loading", percent, message });
 
-    client.on("qr", (qr) => {
+    onQrEvent = (qr) => {
       onStatus?.({ phase: "qr" });
       onQr?.(qr);
       // Reset the timeout on every new QR (WhatsApp rotates it periodically
@@ -99,22 +108,38 @@ export async function createClient({
       // the first one.
       clearQrTimer();
       qrTimer = setTimeout(() => {
-        reject(
+        fail(
           new Error(
             "Timed out waiting for the WhatsApp QR code to be scanned. " +
               "Open the app and re-pair from Settings."
           )
         );
       }, qrTimeoutMs);
-    });
+    };
+
+    client.on("ready", onReady);
+    client.on("auth_failure", onAuthFailure);
+    client.on("disconnected", onDisconnected);
+    client.on("loading_screen", onLoading);
+    client.on("qr", onQrEvent);
+
+    // initialize() can itself reject (e.g. the browser fails to launch
+    // because an old one still holds the profile). Unhandled, that left the
+    // caller waiting forever on a `ready` that would never come.
+    client.initialize().catch(fail);
   });
 
-  client.initialize();
-  try {
-    await ready;
-  } finally {
-    clearQrTimer();
-  }
+  await ready;
+
+  // From here on the caller owns the client's lifecycle (including reacting
+  // to a later disconnect, e.g. being unlinked from the phone). Drop the
+  // pairing-phase handlers so they don't race the caller's own teardown.
+  client.off("ready", onReady);
+  client.off("auth_failure", onAuthFailure);
+  client.off("disconnected", onDisconnected);
+  client.off("loading_screen", onLoading);
+  client.off("qr", onQrEvent);
+
   return client;
 }
 

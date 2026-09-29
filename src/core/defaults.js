@@ -11,8 +11,18 @@ export const DEFAULT_SETTINGS = {
 
   catchupDays: 2, // how many days back to keep retrying a missed birthday
 
+  // How messages go out. "manual" (default): someone opens the app, reviews
+  // today's birthdays and presses Send; at scheduledTime the app only shows a
+  // reminder notification (if reminderEnabled). "auto": the app sends by
+  // itself at scheduledTime, with launch-time catch-up. Manual is the default
+  // because an unattended sender acts on whatever the PC clock says -- a
+  // wrong or test-changed clock sends real wishes on the wrong day.
+  sendMode: "manual",
+  reminderEnabled: true,
+  closeWarningDismissed: false, // user ticked "don't show again" on the close-to-tray notice
+
   // Daily schedule
-  scheduledTime: "09:15", // local HH:MM the scheduler aims to start a run
+  scheduledTime: "09:15", // local HH:MM: the automatic send (auto mode) or reminder (manual mode)
   runAtLogin: true,
   schedulingPaused: false,
   catchUpOnLaunch: true, // if today's scheduled time already passed with no run, fire on next launch

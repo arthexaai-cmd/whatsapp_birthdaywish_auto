@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("api", {
     upsert: (contact) => ipcRenderer.invoke("contacts:upsert", contact),
     delete: (id) => ipcRenderer.invoke("contacts:delete", id),
     pickExcelFile: () => ipcRenderer.invoke("contacts:pickExcelFile"),
+    saveSampleFile: () => ipcRenderer.invoke("contacts:saveSampleFile"),
     previewImport: (filePath) => ipcRenderer.invoke("contacts:previewImport", filePath),
     confirmImport: (filePath) => ipcRenderer.invoke("contacts:confirmImport", filePath),
   },
@@ -34,10 +35,15 @@ contextBridge.exposeInMainWorld("api", {
     getAll: () => ipcRenderer.invoke("settings:getAll"),
     set: (key, value) => ipcRenderer.invoke("settings:set", { key, value }),
     appInfo: () => ipcRenderer.invoke("settings:appInfo"),
+    factoryReset: () => ipcRenderer.invoke("settings:factoryReset"),
   },
   history: {
     listRuns: (limit) => ipcRenderer.invoke("history:listRuns", limit),
     getRunSends: (runId) => ipcRenderer.invoke("history:getRunSends", runId),
+  },
+  reports: {
+    get: (days) => ipcRenderer.invoke("reports:get", { days }),
+    export: (days) => ipcRenderer.invoke("reports:export", { days }),
   },
   whatsapp: {
     getState: () => ipcRenderer.invoke("whatsapp:getState"),
@@ -51,6 +57,7 @@ contextBridge.exposeInMainWorld("api", {
   },
   run: {
     start: (opts) => ipcRenderer.invoke("run:start", opts),
+    previewToday: (opts) => ipcRenderer.invoke("run:previewToday", opts),
     cancel: () => ipcRenderer.invoke("run:cancel"),
     isActive: () => ipcRenderer.invoke("run:isActive"),
     onProgress: (callback) => on("run:progress", callback),

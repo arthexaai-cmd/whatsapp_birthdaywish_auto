@@ -1,10 +1,13 @@
 import React, { useState } from "react";
+import { friendlyError } from "../../errors.js";
+import ImportErrors from "../../components/ImportErrors.jsx";
 
 export default function ImportStep({ onDone }) {
   const [filePath, setFilePath] = useState(null);
   const [preview, setPreview] = useState(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState(null);
+  const [samplePath, setSamplePath] = useState(null);
 
   const pickFile = async () => {
     setError(null);
@@ -15,7 +18,17 @@ export default function ImportStep({ onDone }) {
       const p = await window.api.contacts.previewImport(path);
       setPreview(p);
     } catch (err) {
-      setError(err.message || String(err));
+      setError(friendlyError(err));
+    }
+  };
+
+  const saveSample = async () => {
+    setError(null);
+    try {
+      const saved = await window.api.contacts.saveSampleFile();
+      if (saved) setSamplePath(saved);
+    } catch (err) {
+      setError(friendlyError(err));
     }
   };
 
@@ -26,7 +39,7 @@ export default function ImportStep({ onDone }) {
       await window.api.contacts.confirmImport(filePath);
       onDone();
     } catch (err) {
-      setError(err.message || String(err));
+      setError(friendlyError(err));
     } finally {
       setImporting(false);
     }
@@ -43,9 +56,17 @@ export default function ImportStep({ onDone }) {
       {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
 
       {!preview && (
-        <button className="primary" onClick={pickFile}>
-          Choose Excel file…
-        </button>
+        <div className="row">
+          <button className="primary" onClick={pickFile}>
+            Choose Excel file…
+          </button>
+          <button onClick={saveSample}>Download sample Excel file</button>
+        </div>
+      )}
+      {samplePath && !preview && (
+        <p className="muted" style={{ fontSize: 12, wordBreak: "break-all" }}>
+          Saved to {samplePath}. Fill it in, save it, then choose it above.
+        </p>
       )}
 
       {preview && (
@@ -55,23 +76,10 @@ export default function ImportStep({ onDone }) {
             <span className="badge warn">{preview.updated} to update</span>
             {preview.errors.length > 0 && <span className="badge danger">{preview.errors.length} rows with errors</span>}
           </div>
-          {preview.errors.length > 0 && (
-            <div className="card" style={{ maxHeight: 180, overflowY: "auto" }}>
-              {preview.errors.slice(0, 30).map((e, i) => (
-                <div key={i} className="muted" style={{ fontSize: 12 }}>
-                  Row {e.rowNum}: {e.reason} {e.name ? `(${e.name})` : ""}
-                </div>
-              ))}
-              {preview.errors.length > 30 && (
-                <div className="muted" style={{ fontSize: 12 }}>
-                  …and {preview.errors.length - 30} more
-                </div>
-              )}
-            </div>
-          )}
+          <ImportErrors errors={preview.errors} />
           <div className="row">
             <button onClick={pickFile}>Choose a different file</button>
-            <button className="primary" onClick={confirmImport} disabled={importing}>
+            <button className="primary" onClick={confirmImport} disabled={importing || preview.total === 0}>
               {importing ? "Importing…" : `Import ${preview.total} contacts`}
             </button>
           </div>

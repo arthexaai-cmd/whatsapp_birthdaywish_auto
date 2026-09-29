@@ -11,9 +11,9 @@
 // hours long by design (see pacing.js), so the UI must be able to stop one
 // cleanly mid-batch without losing the record of what already sent.
 
-import { matchBirthdays, dedupeAgainstLedger } from "./birthdays.js";
+import { matchBirthdays, dedupeAgainstLedger, todayInTz } from "./birthdays.js";
 import { renderMessage } from "./messages.js";
-import { batchMatches, buildSchedule } from "./pacing.js";
+import { batchMatches, buildSchedule, effectiveDailyCap, isQuietNow } from "./pacing.js";
 import { resolveWhatsappId, sendWithTyping } from "./whatsapp.js";
 import { buildSummary } from "./report.js";
 import {
@@ -37,7 +37,18 @@ function ymdKey(occ) {
  * finding zero matches anyway -- e.g. an empty contact list, or everyone
  * already sent to today.
  */
-export function hasPendingMatches({ db, settings, dateOverride = null, ignoreLedger = false }) {
+export function hasPendingMatches({ db, settings, dateOverride = null, ignoreLedger = false, approved = null }) {
+  return findDueMatches({ db, settings, dateOverride, ignoreLedger, approved }).matches.length > 0;
+}
+
+/**
+ * Who is due a message right now: non-skipped contacts whose birthday is
+ * today or inside the catch-up window, minus anyone already terminal in the
+ * ledger. With `approved` (an object of ledgerKey -> text from a manual
+ * review), narrowed to exactly the reviewed people -- so someone added or
+ * edited after the review is never swept into that send.
+ */
+function findDueMatches({ db, settings, dateOverride = null, ignoreLedger = false, approved = null }) {
   const allContacts = listContacts(db).filter((c) => !c.skip);
   const today = todayInTz(settings.timezone, dateOverride);
   let matches = matchBirthdays(allContacts, today, {
@@ -48,19 +59,41 @@ export function hasPendingMatches({ db, settings, dateOverride = null, ignoreLed
     const terminalKeys = loadTerminalLedgerKeys(db);
     matches = dedupeAgainstLedger(matches, terminalKeys);
   }
-  return matches.length > 0;
+  if (approved) matches = matches.filter((m) => Object.hasOwn(approved, m.ledgerKey));
+  return { allContacts, today, matches };
 }
 
-function todayInTz(tz, override) {
-  if (override) {
-    const [y, m, d] = override.split("-").map(Number);
-    return { year: y, month: m, day: d };
-  }
-  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
-  const parts = fmt.formatToParts(new Date());
-  const get = (t) => Number(parts.find((p) => p.type === t).value);
-  return { year: get("year"), month: get("month"), day: get("day") };
+/**
+ * Today's review list for manual mode: everyone due, each with the exact
+ * text a Send would use (pass the returned ledgerKey -> text pairs back to
+ * runEngine as `approved`, and that text is what goes out -- templates are
+ * randomized per render, so re-rendering at send time would not match what
+ * the person reviewed). Also reports how many the daily cap would push to a
+ * later run, and who was already sent to today.
+ */
+export function previewToday({ db, settings, dateOverride = null, ignoreLedger = false }) {
+  const { allContacts, today, matches } = findDueMatches({ db, settings, dateOverride, ignoreLedger });
+  const messagesConfig = getMessagesConfig(db);
+  const due = matches.map((m) => ({
+    ledgerKey: m.ledgerKey,
+    contactId: m.person.id,
+    name: m.person.name,
+    phone: m.person.phoneE164,
+    belated: m.belated,
+    occurrence: ymdKey(m.occurrence),
+    text: renderMessage(m.person, m.belated, messagesConfig),
+  }));
+
+  // Already handled today: today's matches that the ledger marks terminal.
+  const terminalKeys = loadTerminalLedgerKeys(db);
+  const alreadySentToday = matchBirthdays(allContacts, today, { catchupDays: 0, leapDayFallback: settings.leapDayFallback })
+    .filter((m) => terminalKeys.has(m.ledgerKey))
+    .map((m) => ({ ledgerKey: m.ledgerKey, name: m.person.name, phone: m.person.phoneE164 }));
+
+  const cap = effectiveDailyCap(settings.pacing, countDistinctRunDays(db));
+  return { today: ymdKey(today), due, cap, overCap: Math.max(0, due.length - cap), alreadySentToday };
 }
+
 
 /** Cancellable sleep: resolves early (without error) if the signal aborts. */
 function abortableSleep(ms, signal) {
@@ -93,6 +126,9 @@ function abortableSleep(ms, signal) {
  *   clicking "Run now") already has human-introduced timing randomness, so callers pass
  *   false there; skipping it also avoids the confusing "nothing happens for a while
  *   with no explanation" experience on a manual test run.
+ * @param {Record<string,string>|null} [opts.approved] manual-mode review result from
+ *   previewToday: ledgerKey -> exact text. When given, only these people are sent to,
+ *   with exactly this text.
  * @param {(event: object) => void} [opts.onProgress]
  */
 export async function runEngine({
@@ -104,27 +140,21 @@ export async function runEngine({
   waClient = null,
   signal,
   applyStartJitter = true,
+  approved = null,
   onProgress = () => {},
 }) {
   const runStart = new Date();
+  const messagesConfig = getMessagesConfig(db);
   if (!dryRun && !waClient) {
     throw new Error("runEngine: a connected waClient is required for a real (non-dry-run) run.");
   }
 
-  const allContacts = listContacts(db).filter((c) => !c.skip);
+  const { allContacts, matches } = findDueMatches({ db, settings, dateOverride, ignoreLedger, approved });
   onProgress({ phase: "loaded", contactCount: allContacts.length });
-
-  const today = todayInTz(settings.timezone, dateOverride);
-  let matches = matchBirthdays(allContacts, today, {
-    catchupDays: settings.catchupDays,
-    leapDayFallback: settings.leapDayFallback,
-  });
-
-  if (!ignoreLedger) {
-    const terminalKeys = loadTerminalLedgerKeys(db);
-    matches = dedupeAgainstLedger(matches, terminalKeys);
-  }
   onProgress({ phase: "matched", matchCount: matches.length });
+  // Reviewed text (manual mode) wins over a fresh random render.
+  const textFor = (person, belated, ledgerKey) =>
+    approved && typeof approved[ledgerKey] === "string" ? approved[ledgerKey] : renderMessage(person, belated, messagesConfig);
 
   if (matches.length === 0) {
     return { scheduled: [], deferred: [], results: [], summary: null, cap: 0, droppedByCap: 0 };
@@ -143,14 +173,12 @@ export async function runEngine({
     firstSendAt: scheduled[0]?.sendAt ?? null,
   });
 
-  const messagesConfig = getMessagesConfig(db);
-
   if (dryRun) {
     const preview = scheduled.map(({ item, sendAt }) => ({
       person: item.person,
       belated: item.belated,
       sendAt,
-      text: renderMessage(item.person, item.belated, messagesConfig),
+      text: textFor(item.person, item.belated, item.ledgerKey),
     }));
     onProgress({ phase: "dry_run_complete", preview });
     return { scheduled: preview, deferred, results: [], summary: null, cap, droppedByCap };
@@ -173,8 +201,16 @@ export async function runEngine({
       break;
     }
 
+    // The schedule was planned up front. If the computer slept or the run
+    // dragged on, "now" can be inside quiet hours even though the planned
+    // time wasn't: stop here and leave everyone left for the next run.
+    if (isQuietNow(new Date(), settings.timezone, settings.pacing.quietHours)) {
+      onProgress({ phase: "deferred_quiet_hours" });
+      break;
+    }
+
     const person = item.person;
-    const text = renderMessage(person, item.belated, messagesConfig);
+    const text = textFor(person, item.belated, item.ledgerKey);
     const occurrence = ymdKey(item.occurrence);
     onProgress({ phase: "sending", person, belated: item.belated });
 

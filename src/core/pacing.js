@@ -41,7 +41,8 @@ export function batchMatches(matches, pacingConfig, ledgerDayCount, rng = Math.r
   const batches = [];
   let i = 0;
   while (i < capped.length) {
-    const size = randInt(pacingConfig.batchSize, rng);
+    // At least 1: a stored batchSize of [0,0] would otherwise never advance i and loop forever.
+    const size = Math.max(1, randInt(pacingConfig.batchSize, rng));
     batches.push(capped.slice(i, i + size));
     i += size;
   }
@@ -84,6 +85,11 @@ export function buildSchedule(batches, pacingConfig, runStart, tz, rng = Math.ra
   }
 
   return { scheduled, deferred };
+}
+
+/** Is this instant inside quiet hours in tz? Used both when planning and right before each real send. */
+export function isQuietNow(date, tz, quietHours) {
+  return localMinutesInQuietHours(date, tz, quietHours);
 }
 
 function localMinutesInQuietHours(date, tz, quietHours) {

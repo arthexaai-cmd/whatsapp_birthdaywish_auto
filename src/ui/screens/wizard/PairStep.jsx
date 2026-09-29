@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { friendlyError } from "../../errors.js";
 
 export default function PairStep({ waState, onPaired }) {
   const [browserCheck, setBrowserCheck] = useState(null);
@@ -25,7 +26,7 @@ export default function PairStep({ waState, onPaired }) {
     try {
       await window.api.whatsapp.connect();
     } catch (err) {
-      setError(err.message || String(err));
+      setError(friendlyError(err));
     } finally {
       setConnecting(false);
     }
@@ -38,7 +39,7 @@ export default function PairStep({ waState, onPaired }) {
       const check = await window.api.whatsapp.checkBrowser();
       setBrowserCheck(check.found ? check : { found: true, browser: "chromium" });
     } catch (err) {
-      setError(err.message || String(err));
+      setError(friendlyError(err));
     }
   };
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { migrate, seedDefaultsIfEmpty, upsertContact, loadTerminalLedgerKeys, listRuns } from "../src/core/db.js";
-import { runEngine } from "../src/core/engine.js";
+import { runEngine, previewToday, hasPendingMatches } from "../src/core/engine.js";
 import { DEFAULT_SETTINGS } from "../src/core/defaults.js";
 
 function freshDb() {
@@ -212,5 +212,59 @@ describe("runEngine — belated matching", () => {
     const result = await runEngine({ db, settings, dryRun: true, dateOverride: "2026-03-14", waClient: null });
     expect(result.scheduled[0].belated).toBe(true);
     expect(result.scheduled[0].text).toMatch(/Belated/);
+  });
+});
+
+describe("manual review — previewToday + approved", () => {
+  it("lists who is due with their text, and moves them to alreadySentToday once sent", async () => {
+    const db = freshDb();
+    addPerson(db);
+    const settings = settingsFor();
+
+    const before = previewToday({ db, settings, dateOverride: "2026-03-14" });
+    expect(before.due).toHaveLength(1);
+    expect(before.due[0]).toMatchObject({ name: "Test Person", belated: false });
+    expect(before.due[0].text).toMatch(/^Happy birthday Test!/); // a random emoji may follow
+    expect(before.alreadySentToday).toHaveLength(0);
+
+    await runEngine({ db, settings, dateOverride: "2026-03-14", waClient: fakeClient() });
+    const after = previewToday({ db, settings, dateOverride: "2026-03-14" });
+    expect(after.due).toHaveLength(0);
+    expect(after.alreadySentToday.map((s) => s.name)).toEqual(["Test Person"]);
+  });
+
+  it("sends only the approved people, with exactly the approved text", async () => {
+    const db = freshDb();
+    addPerson(db);
+    const settings = settingsFor();
+    const { due } = previewToday({ db, settings, dateOverride: "2026-03-14" });
+    const approved = { [due[0].ledgerKey]: "Reviewed text 🎂" };
+
+    // Someone added *after* the review must not be swept into this send.
+    addPerson(db, { name: "Late Addition", phoneE164: "+919812345679" });
+
+    const client = fakeClient();
+    const result = await runEngine({ db, settings, dateOverride: "2026-03-14", waClient: client, approved });
+    expect(result.results.map((r) => r.person.name)).toEqual(["Test Person"]);
+    expect(client.sendMessage).toHaveBeenCalledTimes(1);
+    expect(client.sendMessage.mock.calls[0][1]).toBe("Reviewed text 🎂");
+    // The late addition is still due for a later send.
+    expect(previewToday({ db, settings, dateOverride: "2026-03-14" }).due.map((d) => d.name)).toEqual(["Late Addition"]);
+  });
+
+  it("hasPendingMatches honours approved", () => {
+    const db = freshDb();
+    addPerson(db);
+    const settings = settingsFor();
+    expect(hasPendingMatches({ db, settings, dateOverride: "2026-03-14", approved: {} })).toBe(false);
+    expect(hasPendingMatches({ db, settings, dateOverride: "2026-03-14" })).toBe(true);
+  });
+
+  it("reports how many the daily cap would defer", () => {
+    const db = freshDb();
+    addPerson(db);
+    addPerson(db, { name: "Second", phoneE164: "+919812345679" });
+    const settings = { ...settingsFor(), pacing: { ...settingsFor().pacing, dailyCap: 1, warmupDays: 0 } };
+    expect(previewToday({ db, settings, dateOverride: "2026-03-14" })).toMatchObject({ cap: 1, overCap: 1 });
   });
 });

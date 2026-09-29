@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { migrate, startRun, endRun } from "../src/core/db.js";
-import { computeTodayFireDate, computeNextFireDate, hasRunToday } from "../src/core/schedule.js";
+import {
+  computeTodayFireDate,
+  computeNextFireDate,
+  hasRunToday,
+  evaluateSchedulerTick,
+  scheduledAction,
+} from "../src/core/schedule.js";
 
 function freshDb() {
   const db = new DatabaseSync(":memory:");
@@ -93,5 +99,61 @@ describe("hasRunToday", () => {
     const db = freshDb();
     startRun(db, { dryRun: false }); // never ended -> stays 'running'
     expect(hasRunToday(db, "UTC")).toBe(false);
+  });
+});
+
+describe("evaluateSchedulerTick", () => {
+  const settings = { scheduledTime: "09:15", timezone: "Asia/Kolkata", schedulingPaused: false };
+
+  it("waits until the armed time, then fires and arms the next day", () => {
+    const armed = computeNextFireDate(settings, new Date("2026-09-29T02:00:00Z")); // 29 Sep 09:15 IST
+    expect(evaluateSchedulerTick(armed, settings, new Date("2026-09-29T03:44:00Z"))).toEqual({ fire: false, nextFireAt: armed });
+    const t = evaluateSchedulerTick(armed, settings, new Date("2026-09-29T03:45:10Z"));
+    expect(t.fire).toBe(true);
+    expect(t.nextFireAt.toISOString()).toBe("2026-09-30T03:45:00.000Z");
+  });
+
+  it("fires as soon as the wall clock jumps past the armed time (clock changed while running)", () => {
+    // Armed on 29 Sep for 30 Sep 09:15; the OS clock then jumps to 1 Oct 09:18.
+    const armed = new Date("2026-09-30T03:45:00Z");
+    const t = evaluateSchedulerTick(armed, settings, new Date("2026-10-01T03:48:00Z"));
+    expect(t.fire).toBe(true);
+    expect(t.nextFireAt.toISOString()).toBe("2026-10-02T03:45:00.000Z");
+  });
+
+  it("re-derives the fire time when the clock moves backwards", () => {
+    // Armed for 30 Sep 09:15 while the clock read 30 Sep; clock corrected back to 28 Sep 10:00.
+    const armed = new Date("2026-09-30T03:45:00Z");
+    const t = evaluateSchedulerTick(armed, settings, new Date("2026-09-28T04:30:00Z"));
+    expect(t.fire).toBe(false);
+    expect(t.nextFireAt.toISOString()).toBe("2026-09-29T03:45:00.000Z");
+  });
+
+  it("never fires while scheduling is paused", () => {
+    const t = evaluateSchedulerTick(new Date(0), { ...settings, schedulingPaused: true }, new Date());
+    expect(t).toEqual({ fire: false, nextFireAt: null });
+  });
+});
+
+describe("scheduledAction", () => {
+  it("manual is the default and only reminds", () => {
+    expect(scheduledAction({})).toBe("remind");
+    expect(scheduledAction({ sendMode: "manual", reminderEnabled: true })).toBe("remind");
+    expect(scheduledAction({ sendMode: "manual", reminderEnabled: false })).toBe("none");
+  });
+
+  it("automatic mode sends", () => {
+    expect(scheduledAction({ sendMode: "auto" })).toBe("send");
+    expect(scheduledAction({ sendMode: "auto", reminderEnabled: false })).toBe("send");
+  });
+
+  it("paused suppresses both sends and reminders", () => {
+    expect(scheduledAction({ sendMode: "auto", schedulingPaused: true })).toBe("none");
+    expect(scheduledAction({ sendMode: "manual", schedulingPaused: true })).toBe("none");
+  });
+
+  it("the scheduler arms nothing when there is nothing to do", () => {
+    const t = evaluateSchedulerTick(null, { scheduledTime: "09:15", timezone: "UTC", sendMode: "manual", reminderEnabled: false });
+    expect(t).toEqual({ fire: false, nextFireAt: null });
   });
 });

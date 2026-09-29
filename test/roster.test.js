@@ -14,6 +14,12 @@ describe("parseBirthdate", () => {
   it("accepts a Date object", () => {
     expect(parseBirthdate(new Date(2000, 2, 14))).toEqual({ month: 3, day: 14, year: null });
   });
+  it("rounds a Date a few seconds before midnight to the intended day", () => {
+    expect(parseBirthdate(new Date(2026, 8, 28, 23, 59, 50))).toEqual({ month: 9, day: 29, year: null });
+  });
+  it("accepts a raw Excel serial number", () => {
+    expect(parseBirthdate(46294)).toEqual({ month: 9, day: 29, year: null });
+  });
   it("rejects impossible dates", () => {
     expect(parseBirthdate("31/04/2020")).toBeNull();
     expect(parseBirthdate("32/01/2020")).toBeNull();
@@ -40,6 +46,13 @@ describe("normalizeRoster", () => {
       birthDay: 14,
       birthYear: 1995,
     });
+  });
+
+  it("accepts a real Excel date cell (Date object) as the birthdate", () => {
+    const rows = [headers, ["A", "+91 98123 45678", new Date(2026, 8, 28, 23, 59, 50), "", "", ""]];
+    const { people, errors } = normalizeRoster(rows, { defaultCountry: "IN" });
+    expect(errors).toEqual([]);
+    expect(people[0]).toMatchObject({ birthMonth: 9, birthDay: 29 });
   });
 
   it("accepts a phone with +91 and spaces", () => {
@@ -92,5 +105,24 @@ describe("normalizeRoster", () => {
     const { people, errors } = normalizeRoster(rows, { defaultCountry: "IN" });
     expect(errors).toEqual([]);
     expect(people).toHaveLength(1);
+  });
+});
+
+describe("validateContactInput (F12)", () => {
+  const ok = { name: " Priya ", phoneE164: "+919812345678", birthMonth: 3, birthDay: 14, birthYear: null, skip: false };
+  it("cleans and accepts a good contact", async () => {
+    const { validateContactInput } = await import("../src/core/roster.js");
+    expect(validateContactInput(ok)).toMatchObject({ name: "Priya", birthMonth: 3, birthDay: 14, birthYear: null });
+    expect(validateContactInput({ ...ok, birthMonth: 2, birthDay: 29 })).toMatchObject({ birthDay: 29 }); // leap day allowed
+    expect(validateContactInput({ ...ok, birthYear: "1990" }).birthYear).toBe(1990);
+  });
+  it("rejects empty/zero/impossible dates, blank names and silly years", async () => {
+    const { validateContactInput } = await import("../src/core/roster.js");
+    for (const bad of [
+      { birthMonth: 0, birthDay: 0 }, { birthMonth: 4, birthDay: 31 }, { birthMonth: 13, birthDay: 1 }, { birthMonth: NaN, birthDay: 1 },
+      { birthMonth: 2, birthDay: 30 }, { name: "   " }, { birthYear: 1800 }, { birthYear: 3000 }, { birthYear: 12.5 },
+    ]) {
+      expect(() => validateContactInput({ ...ok, ...bad }), JSON.stringify(bad)).toThrow(/Invalid contact/);
+    }
   });
 });

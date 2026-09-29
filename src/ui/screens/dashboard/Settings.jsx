@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { friendlyError } from "../../errors.js";
 import ClockCard from "../../components/ClockCard.jsx";
+import ResetCard from "../../components/ResetCard.jsx";
 
 export default function Settings({ settings, waState, onSettingsChange, onReopenWizard }) {
   const [appInfo, setAppInfo] = useState(null);
@@ -7,6 +9,7 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
   const [selfNotifyEnabled, setSelfNotifyEnabled] = useState(settings?.selfNotifyEnabled ?? true);
   const [defaultCountry, setDefaultCountry] = useState(settings?.defaultCountry || "IN");
   const [unlinking, setUnlinking] = useState(false);
+  const [sampleStatus, setSampleStatus] = useState(null);
 
   useEffect(() => {
     window.api.settings.appInfo().then(setAppInfo);
@@ -19,12 +22,27 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
     onSettingsChange();
   };
 
+  const saveSample = async () => {
+    setSampleStatus(null);
+    try {
+      const saved = await window.api.contacts.saveSampleFile();
+      if (saved) setSampleStatus(`Saved to ${saved}`);
+    } catch (err) {
+      setSampleStatus(`Could not save: ${friendlyError(err)}`);
+    }
+  };
+
   const unlink = async () => {
     if (!confirm("Unlink WhatsApp? You'll need to scan a QR code again to reconnect.")) return;
     setUnlinking(true);
-    await window.api.whatsapp.unlink();
-    setUnlinking(false);
-    onSettingsChange();
+    try {
+      await window.api.whatsapp.unlink();
+    } catch (err) {
+      alert(friendlyError(err));
+    } finally {
+      setUnlinking(false);
+      onSettingsChange();
+    }
   };
 
   return (
@@ -71,12 +89,29 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
       </div>
 
       <div className="card stack">
+        <h3>Contacts template</h3>
+        <p className="muted">
+          A blank Excel file with the right columns and instructions. Fill it in, then import it from the Contacts tab.
+        </p>
+        <button onClick={saveSample} style={{ alignSelf: "flex-start" }}>
+          Download sample Excel file
+        </button>
+        {sampleStatus && (
+          <p className="muted" style={{ fontSize: 12, wordBreak: "break-all" }}>
+            {sampleStatus}
+          </p>
+        )}
+      </div>
+
+      <div className="card stack">
         <h3>About</h3>
         <p className="muted">Version {appInfo?.version}</p>
         <p className="muted" style={{ fontSize: 12, wordBreak: "break-all" }}>
           Data folder: {appInfo?.userDataPath}
         </p>
       </div>
+
+      <ResetCard />
     </div>
   );
 }

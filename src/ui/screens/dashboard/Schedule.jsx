@@ -1,14 +1,18 @@
 import React, { useState } from "react";
+import SendModeFields from "../../components/SendModeFields.jsx";
+import { friendlyError } from "../../errors.js";
 
-function RangeField({ label, hint, value, onChange, unit }) {
+const TIMEZONES = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+
+function RangeField({ label, hint, value, onChange, unit, min = 0 }) {
   const [lo, hi] = value;
   return (
     <div>
       <label>{label}</label>
       <div className="row">
-        <input type="number" min="0" value={lo} onChange={(e) => onChange([Number(e.target.value), hi])} style={{ width: 70 }} />
+        <input type="number" min={min} value={lo} onChange={(e) => onChange([Number(e.target.value), hi])} style={{ width: 70 }} />
         <span className="muted">to</span>
-        <input type="number" min="0" value={hi} onChange={(e) => onChange([lo, Number(e.target.value)])} style={{ width: 70 }} />
+        <input type="number" min={min} value={hi} onChange={(e) => onChange([lo, Number(e.target.value)])} style={{ width: 70 }} />
         <span className="muted">{unit}</span>
       </div>
       {hint && (
@@ -23,20 +27,31 @@ function RangeField({ label, hint, value, onChange, unit }) {
 export default function Schedule({ settings, onSettingsChange }) {
   const [local, setLocal] = useState(settings);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const set = (key, value) => setLocal({ ...local, [key]: value });
   const setPacing = (key, value) => setLocal({ ...local, pacing: { ...local.pacing, [key]: value } });
 
   const save = async () => {
     setSaving(true);
-    await window.api.settings.set("scheduledTime", local.scheduledTime);
-    await window.api.settings.set("timezone", local.timezone);
-    await window.api.settings.set("catchupDays", local.catchupDays);
-    await window.api.settings.set("catchUpOnLaunch", local.catchUpOnLaunch);
-    await window.api.settings.set("runAtLogin", local.runAtLogin);
-    await window.api.settings.set("pacing", local.pacing);
-    setSaving(false);
-    onSettingsChange();
+    setError(null);
+    try {
+      await window.api.settings.set("sendMode", local.sendMode === "auto" ? "auto" : "manual");
+      await window.api.settings.set("reminderEnabled", local.reminderEnabled !== false);
+      await window.api.settings.set("schedulingPaused", !!local.schedulingPaused);
+      await window.api.settings.set("scheduledTime", local.scheduledTime);
+      await window.api.settings.set("timezone", local.timezone);
+      await window.api.settings.set("catchupDays", local.catchupDays);
+      await window.api.settings.set("catchUpOnLaunch", local.catchUpOnLaunch);
+      await window.api.settings.set("runAtLogin", local.runAtLogin);
+      await window.api.settings.set("pacing", local.pacing);
+      onSettingsChange();
+    } catch (err) {
+      // The main process validates every value; show why one was refused.
+      setError(friendlyError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!local) return null;
@@ -46,27 +61,33 @@ export default function Schedule({ settings, onSettingsChange }) {
       <h1>Schedule &amp; pacing</h1>
 
       <div className="card stack">
-        <h3>Daily schedule</h3>
+        <h3>Sending mode</h3>
+        <SendModeFields values={local} set={set} />
         <div className="row">
-          <div>
-            <label>Time</label>
-            <input type="time" value={local.scheduledTime} onChange={(e) => set("scheduledTime", e.target.value)} />
-          </div>
           <div style={{ flex: 1 }}>
             <label>Timezone</label>
-            <input type="text" value={local.timezone} onChange={(e) => set("timezone", e.target.value)} style={{ width: "100%" }} />
+            <input type="text" list="timezone-list" value={local.timezone} onChange={(e) => set("timezone", e.target.value)} style={{ width: "100%" }} />
+            <datalist id="timezone-list">
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz} />
+              ))}
+            </datalist>
           </div>
         </div>
         <label className="row" style={{ cursor: "pointer" }}>
-          <input type="checkbox" checked={local.schedulingPaused} onChange={(e) => set("schedulingPaused", e.target.checked)} />
-          <span style={{ color: "var(--text)" }}>Pause automatic scheduling</span>
-        </label>
-        <label className="row" style={{ cursor: "pointer" }}>
-          <input type="checkbox" checked={local.catchUpOnLaunch} onChange={(e) => set("catchUpOnLaunch", e.target.checked)} />
+          <input type="checkbox" checked={!!local.schedulingPaused} onChange={(e) => set("schedulingPaused", e.target.checked)} />
           <span style={{ color: "var(--text)" }}>
-            Catch up automatically if the computer was off at the scheduled time
+            Pause {local.sendMode === "auto" ? "automatic sending" : "reminders"}
           </span>
         </label>
+        {local.sendMode === "auto" && (
+          <label className="row" style={{ cursor: "pointer" }}>
+            <input type="checkbox" checked={local.catchUpOnLaunch} onChange={(e) => set("catchUpOnLaunch", e.target.checked)} />
+            <span style={{ color: "var(--text)" }}>
+              Catch up automatically if the computer was off at the scheduled time
+            </span>
+          </label>
+        )}
         <label className="row" style={{ cursor: "pointer" }}>
           <input type="checkbox" checked={local.runAtLogin} onChange={(e) => set("runAtLogin", e.target.checked)} />
           <span style={{ color: "var(--text)" }}>Start automatically when I log in (minimized to tray)</span>
@@ -84,7 +105,7 @@ export default function Schedule({ settings, onSettingsChange }) {
           bursts is what gets numbers flagged — raise these only if you understand the risk.
         </p>
         <RangeField label="Start delay after scheduled time" unit="minutes" value={local.pacing.startJitterMinutes} onChange={(v) => setPacing("startJitterMinutes", v)} />
-        <RangeField label="Messages per batch" unit="messages" value={local.pacing.batchSize} onChange={(v) => setPacing("batchSize", v)} />
+        <RangeField label="Messages per batch" min={1} unit="messages" value={local.pacing.batchSize} onChange={(v) => setPacing("batchSize", v)} />
         <RangeField label="Gap between messages in a batch" unit="seconds" value={local.pacing.withinBatchSeconds} onChange={(v) => setPacing("withinBatchSeconds", v)} />
         <RangeField label="Gap between batches" unit="minutes" value={local.pacing.betweenBatchMinutes} onChange={(v) => setPacing("betweenBatchMinutes", v)} />
         <div>
@@ -118,6 +139,7 @@ export default function Schedule({ settings, onSettingsChange }) {
         </div>
       </div>
 
+      {error && <p style={{ color: "var(--danger)", margin: 0 }}>{error}</p>}
       <button className="primary" onClick={save} disabled={saving} style={{ alignSelf: "flex-start" }}>
         {saving ? "Saving…" : "Save changes"}
       </button>

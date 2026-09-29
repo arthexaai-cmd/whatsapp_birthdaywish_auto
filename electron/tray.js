@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let tray = null;
 
-export function createTray({ getMainWindow, getScheduler, getSettings }) {
+export function createTray({ getMainWindow, getScheduler, getSettings, onQuit }) {
   const iconPath = path.join(__dirname, "..", "build", "tray-icon.png");
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
@@ -21,11 +21,14 @@ export function createTray({ getMainWindow, getScheduler, getSettings }) {
     const scheduler = getScheduler();
     const settings = getSettings();
     const nextFire = scheduler?.getNextFireAt?.();
+    const auto = settings.sendMode === "auto";
     const nextFireLabel = settings.schedulingPaused
       ? "Scheduling paused"
-      : nextFire
-        ? `Next run: ${nextFire.toLocaleString()}`
-        : "Next run: not scheduled";
+      : !auto && settings.reminderEnabled === false
+        ? "Manual mode · reminders off"
+        : nextFire
+          ? `${auto ? "Next send" : "Next reminder"}: ${nextFire.toLocaleString()}`
+          : "Not scheduled";
 
     const menu = Menu.buildFromTemplate([
       { label: nextFireLabel, enabled: false },
@@ -39,7 +42,7 @@ export function createTray({ getMainWindow, getScheduler, getSettings }) {
         },
       },
       {
-        label: "Run now",
+        label: "Send today's birthdays…", // opens the review screen; never sends by itself
         enabled: !runManager.isActive(),
         click: () => {
           const win = getMainWindow();
@@ -57,10 +60,8 @@ export function createTray({ getMainWindow, getScheduler, getSettings }) {
       { type: "separator" },
       {
         label: "Quit",
-        click: () => {
-          app.isQuitting = true;
-          app.quit();
-        },
+        // Goes through main.js's quit guard, which warns before exiting.
+        click: () => onQuit(),
       },
     ]);
     tray.setContextMenu(menu);

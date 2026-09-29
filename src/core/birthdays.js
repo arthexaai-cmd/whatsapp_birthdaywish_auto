@@ -31,6 +31,21 @@ export function ymdToKey(ymd) {
 }
 
 /**
+ * "Today" as a DateYMD in the given IANA timezone. `override` (YYYY-MM-DD)
+ * pins it -- a testing aid, see engine.js's dateOverride.
+ */
+export function todayInTz(tz, override = null, now = new Date()) {
+  if (override) {
+    const [y, m, d] = override.split("-").map(Number);
+    return { year: y, month: m, day: d };
+  }
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+  const parts = fmt.formatToParts(now);
+  const get = (t) => Number(parts.find((p) => p.type === t).value);
+  return { year: get("year"), month: get("month"), day: get("day") };
+}
+
+/**
  * Resolve a person's birthday (month/day, year optional) onto a concrete
  * occurrence in the given year, applying the Feb 29 fallback for non-leap
  * years. Returns a DateYMD.

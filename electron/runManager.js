@@ -15,6 +15,8 @@ class RunManager extends EventEmitter {
     this.active = false;
     this.controller = null;
     this.lastResult = null;
+    /** Sends still queued in the current run (for the quit warning). */
+    this.pending = 0;
   }
 
   isActive() {
@@ -34,13 +36,15 @@ class RunManager extends EventEmitter {
    *   randomness by clicking the button. 'scheduled'/'catch_up' keep the jitter, which
    *   exists specifically so the automatic daily trigger doesn't fire at a fixed,
    *   suspiciously exact time every day.
+   * @param {Record<string,string>|null} [opts.approved] manual review result (ledgerKey -> text), see runEngine
    */
-  async start({ db, dryRun = false, dateOverride = null, ignoreLedger = false, userDataPath, trigger = "manual" }) {
+  async start({ db, dryRun = false, dateOverride = null, ignoreLedger = false, approved = null, userDataPath, trigger = "manual" }) {
     if (this.active) {
       throw new Error("A run is already in progress.");
     }
     this.active = true;
     this.controller = new AbortController();
+    this.pending = 0;
     this.emit("progress", { phase: "starting", dryRun });
 
     try {
@@ -50,7 +54,7 @@ class RunManager extends EventEmitter {
       // nothing to send anyway (empty contact list, everyone already sent
       // to today, etc.) -- avoids launching the browser and risking a QR
       // wait for scheduled/catch-up runs that have no actual work to do.
-      if (!dryRun && !hasPendingMatches({ db, settings, dateOverride, ignoreLedger })) {
+      if (!dryRun && !hasPendingMatches({ db, settings, dateOverride, ignoreLedger, approved })) {
         this.emit("progress", { phase: "matched", matchCount: 0 });
         const result = { scheduled: [], deferred: [], results: [], summary: null, cap: 0, droppedByCap: 0 };
         this.lastResult = result;
@@ -68,10 +72,15 @@ class RunManager extends EventEmitter {
         dryRun,
         dateOverride,
         ignoreLedger,
+        approved,
         waClient,
         signal: this.controller.signal,
         applyStartJitter: trigger !== "manual",
-        onProgress: (event) => this.emit("progress", event),
+        onProgress: (event) => {
+          if (event.phase === "scheduled") this.pending = event.scheduledCount;
+          else if (["sent", "not_on_whatsapp", "send_failed"].includes(event.phase)) this.pending = Math.max(0, this.pending - 1);
+          this.emit("progress", event);
+        },
       });
 
       this.lastResult = result;
@@ -80,6 +89,10 @@ class RunManager extends EventEmitter {
       this.active = false;
       this.controller = null;
     }
+  }
+
+  getPendingCount() {
+    return this.active ? this.pending : 0;
   }
 
   /** Cancel the run in progress, if any. Takes effect between sends, never mid-send. */

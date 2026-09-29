@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { friendlyError } from "../../errors.js";
 import { describeDrift } from "../../../core/clock.js";
 
 function StatusBadge({ waState }) {
@@ -18,24 +19,51 @@ function StatusBadge({ waState }) {
   );
 }
 
-export default function Home({ settings, waState }) {
+function describeWaProblem(error) {
+  if (error === "unlinked") {
+    return "This computer was unlinked from WhatsApp on your phone. Birthday messages can't be sent until you reconnect by scanning a new QR code.";
+  }
+  const detail = error ? ` (${friendlyError(new Error(error))})` : "";
+  return `WhatsApp isn't connected, so birthday messages can't be sent until you reconnect${detail}.`;
+}
+
+export default function Home({ settings, waState, onReopenWizard }) {
   const [running, setRunning] = useState(false);
   const [events, setEvents] = useState([]);
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState(null);
   const [ignoreLedger, setIgnoreLedger] = useState(false);
   const [clockDrift, setClockDrift] = useState(null);
+  const [preview, setPreview] = useState(null);
   const logRef = useRef(null);
+
+  const loadPreview = useCallback(() => {
+    window.api.run
+      .previewToday({ ignoreLedger })
+      .then(setPreview)
+      .catch((err) => setError(friendlyError(err)));
+  }, [ignoreLedger]);
+  // Listeners registered once on mount call through this ref, so they always
+  // use the current ignoreLedger rather than the value at mount time.
+  const loadPreviewRef = useRef(loadPreview);
+  loadPreviewRef.current = loadPreview;
+
+  useEffect(() => {
+    loadPreview();
+  }, [loadPreview]);
 
   useEffect(() => {
     const off = window.api.run.onProgress((event) => {
       setEvents((prev) => [...prev.slice(-200), event]);
       if (event.phase === "complete" || event.phase === "cancelled") {
         setRunning(false);
+        loadPreviewRef.current();
       }
     });
     window.api.run.isActive().then(setRunning);
-    const offRunNow = window.api.tray.onRunNow(() => startRun(false));
+    // The tray's "Send today's birthdays" only brings this screen up for
+    // review -- it never sends without someone pressing Send here.
+    const offRunNow = window.api.tray.onRunNow(() => loadPreviewRef.current());
     // Quiet, best-effort check -- birthday matching and scheduling read
     // entirely from the system clock, so a wrong clock fails silently
     // otherwise. Only surfaces a banner if it's actually off; never blocks
@@ -54,16 +82,28 @@ export default function Home({ settings, waState }) {
     logRef.current?.scrollTo(0, logRef.current.scrollHeight);
   }, [events]);
 
+  const due = preview?.due ?? [];
+  const auto = settings?.sendMode === "auto";
+
   const startRun = async (dryRun) => {
+    if (!dryRun) {
+      const ok = window.confirm(
+        `Send ${due.length} birthday message${due.length === 1 ? "" : "s"} on WhatsApp now?\n\n` +
+          "They go out spaced a little apart, so keep the app open until it finishes."
+      );
+      if (!ok) return;
+    }
+    // Send exactly what was reviewed: only these people, with this text.
+    const approved = Object.fromEntries(due.map((d) => [d.ledgerKey, d.text]));
     setError(null);
     setEvents([]);
     setLastResult(null);
     setRunning(true);
     try {
-      const result = await window.api.run.start({ dryRun, ignoreLedger });
+      const result = await window.api.run.start({ dryRun, ignoreLedger, approved });
       setLastResult(result);
     } catch (err) {
-      setError(err.message || String(err));
+      setError(friendlyError(err));
     } finally {
       setRunning(false);
     }
@@ -79,6 +119,15 @@ export default function Home({ settings, waState }) {
         <StatusBadge waState={waState} />
       </div>
 
+      {(waState?.status === "disconnected" || waState?.status === "error") && (
+        <div className="card row" style={{ justifyContent: "space-between", borderColor: "var(--danger)" }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--danger)" }}>{describeWaProblem(waState.error)}</p>
+          <button className="primary" onClick={onReopenWizard}>
+            Reconnect
+          </button>
+        </div>
+      )}
+
       {clockDrift && (
         <div className="card row" style={{ justifyContent: "space-between", borderColor: "var(--danger)" }}>
           <p style={{ margin: 0, fontSize: 13, color: "var(--danger)" }}>
@@ -92,10 +141,14 @@ export default function Home({ settings, waState }) {
       <div className="card stack">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <h3 style={{ margin: 0 }}>Send today&apos;s birthdays</h3>
+            <h3 style={{ margin: 0 }}>Today&apos;s birthdays</h3>
             <p className="muted" style={{ margin: "4px 0 0" }}>
-              Scheduled daily at {settings?.scheduledTime} ({settings?.timezone})
-              {settings?.schedulingPaused && <span style={{ color: "var(--warn)" }}> — scheduling paused</span>}
+              {auto
+                ? `Automatic — sends daily from ${settings?.scheduledTime}`
+                : settings?.reminderEnabled === false
+                  ? "Manual — review and send from here"
+                  : `Manual — review and send from here (reminder at ${settings?.scheduledTime})`}
+              {settings?.schedulingPaused && <span style={{ color: "var(--warn)" }}> — paused</span>}
             </p>
           </div>
           <div className="row">
@@ -105,14 +158,65 @@ export default function Home({ settings, waState }) {
               </button>
             ) : (
               <>
-                <button onClick={() => startRun(true)}>Dry run</button>
-                <button className="primary" onClick={() => startRun(false)} disabled={waState?.status !== "ready"}>
-                  Run now
+                <button onClick={() => startRun(true)} disabled={due.length === 0}>
+                  Dry run
+                </button>
+                <button
+                  className="primary"
+                  onClick={() => startRun(false)}
+                  disabled={waState?.status !== "ready" || due.length === 0}
+                  title={waState?.status !== "ready" ? "Connect WhatsApp first" : undefined}
+                >
+                  {auto ? "Send now" : "Send all"}
+                  {due.length > 0 ? ` (${due.length})` : ""}
                 </button>
               </>
             )}
           </div>
         </div>
+
+        {preview && due.length === 0 && (
+          <p className="muted" style={{ margin: 0 }}>
+            {preview.alreadySentToday.length > 0 ? "Everyone's been sent to today. 🎉" : "No birthdays to send today."}
+          </p>
+        )}
+        {due.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {due.map((d) => (
+                <tr key={d.ledgerKey}>
+                  <td>
+                    {d.name}
+                    {d.belated && (
+                      <span className="badge warn" style={{ marginLeft: 6 }} title={`Birthday was ${d.occurrence}`}>
+                        belated
+                      </span>
+                    )}
+                  </td>
+                  <td className="muted">{d.phone}</td>
+                  <td style={{ whiteSpace: "pre-wrap" }}>{d.text}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {preview?.overCap > 0 && (
+          <p style={{ margin: 0, fontSize: 12, color: "var(--warn)" }}>
+            The daily cap is {preview.cap}, so {preview.overCap} of these will wait for the next send (as belated wishes).
+          </p>
+        )}
+        {preview?.alreadySentToday.length > 0 && due.length > 0 && (
+          <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+            Already sent today: {preview.alreadySentToday.map((s) => s.name).join(", ")}
+          </p>
+        )}
         {!running && (
           <label className="row" style={{ cursor: "pointer", fontSize: 12 }}>
             <input type="checkbox" checked={ignoreLedger} onChange={(e) => setIgnoreLedger(e.target.checked)} />
