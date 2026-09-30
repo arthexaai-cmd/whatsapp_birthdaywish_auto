@@ -56,9 +56,16 @@ a Send is real. So:
 
 ```bash
 npm install
-npm test        # 267 tests over the pure selection/pacing/DB/schedule logic
+npm test        # 290 tests over the pure selection/pacing/DB/schedule logic
 npm run dev      # Vite dev server + Electron, with hot reload
 ```
+
+### Updates and releases
+The installed app checks GitHub Releases for a newer version and offers it
+(Settings → Updates, plus a banner on the Dashboard); nothing installs without
+a click, and never while messages are being sent. Releases are built by GitHub
+Actions when you push a version tag (`npm version minor && git push
+--follow-tags`). See [docs/RELEASING.md](docs/RELEASING.md).
 
 `npm run dev` starts the React UI on `localhost:5173` and launches Electron
 pointed at it. Edit anything under `src/ui/` and it hot-reloads; edit
@@ -72,7 +79,7 @@ src/core/          Pure, unit-tested engine: selection, pacing, messages, DB
                     schema/queries, WhatsApp client lifecycle. No Electron
                     dependency -- testable in plain Node/Vitest.
 src/ui/            React renderer (Vite): the wizard + dashboard screens
-test/              267 Vitest tests covering src/core/
+test/              290 Vitest tests covering src/core/
 config/            messages.yaml: default message templates, seeded into the
                     DB on first run only (never overwrites user edits)
 build/             Installer icon + tray icon (placeholders -- see below)

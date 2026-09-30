@@ -22,6 +22,12 @@ const RULES = [
   [/protocolTimeout|callFunctionOn timed out|Navigation timeout|Waiting for selector/i,
     "WhatsApp didn't respond in time -- usually a lost internet connection. It will be retried on the next send."],
 
+  // --- App updates --- (before the generic network rule: these carry their own wording)
+  [/^(?:HttpError:\s*)?403\b|rate limit/i, "GitHub is limiting update checks right now. Try again in a little while."],
+  [/^(?:HttpError:\s*)?404\b|Cannot find latest\.yml|No published versions|Unable to find latest version/i,
+    "No update information was found yet. Nothing has been released, or the release is still being prepared."],
+  [/sha512 checksum mismatch|checksum/i, "The downloaded update failed its integrity check and was not installed. Try downloading it again."],
+
   // --- Network --- (first: "net::ERR_INTERNET_DISCONNECTED" would otherwise hit the generic /disconnected/ rule below)
   [/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|net::ERR_/i, "Couldn't reach the internet. Check your connection and try again."],
 

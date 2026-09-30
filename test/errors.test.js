@@ -80,3 +80,12 @@ describe("friendlyError", () => {
     expect(out).not.toMatch(/Error invoking remote method/);
   });
 });
+
+describe("update errors", () => {
+  it("maps GitHub / updater failures to plain language", () => {
+    expect(friendlyMessage({ message: "HttpError: 403 rate limit exceeded" })).toMatch(/limiting update checks/);
+    expect(friendlyMessage({ message: "Cannot find latest.yml in the latest release artifacts" })).toMatch(/No update information/);
+    expect(friendlyMessage({ message: "HttpError: 404" })).toMatch(/No update information/);
+    expect(friendlyMessage({ message: "sha512 checksum mismatch, expected a, got b" })).toMatch(/integrity check/);
+  });
+});

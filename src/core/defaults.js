@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS = {
   // wrong or test-changed clock sends real wishes on the wrong day.
   sendMode: "manual",
   reminderEnabled: true,
+  updateCheckEnabled: true, // look for a newer version on launch and every few hours (never installs by itself)
   closeWarningDismissed: false, // user ticked "don't show again" on the close-to-tray notice
 
   // Daily schedule

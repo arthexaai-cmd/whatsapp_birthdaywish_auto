@@ -16,6 +16,7 @@ import { wipeAppData } from "../src/core/reset.js";
 import { registerAllIpc } from "./ipc/index.js";
 import { createTray } from "./tray.js";
 import { Scheduler } from "./scheduler.js";
+import { Updater } from "./updater.js";
 import { runManager } from "./runManager.js";
 import { whatsappManager } from "./whatsappManager.js";
 
@@ -38,6 +39,7 @@ process.on("unhandledRejection", (reason) => {
 let mainWindow = null;
 let trayHandle = null;
 let scheduler = null;
+let updater = null;
 let reminderNotification = null;
 
 // Test/dev aid: point the app at a scratch data folder so testing never
@@ -140,6 +142,8 @@ async function main() {
 
   mainWindow = createWindow();
 
+  updater = new Updater({ getSettings: () => getAllSettings(db) });
+
   registerAllIpc({
     db,
     mainWindow,
@@ -149,6 +153,13 @@ async function main() {
       applyRunAtLogin(getAllSettings(db).runAtLogin);
     },
     onFactoryReset: factoryReset,
+    updater,
+    // What canInstallNow needs to decide whether restarting into an update is safe right now.
+    getInstallContext: () => ({
+      runActive: runManager.isActive(),
+      settings: getAllSettings(db),
+      nextFireAt: scheduler?.getNextFireAt?.() ?? null,
+    }),
   });
 
   scheduler = new Scheduler({
@@ -183,8 +194,15 @@ async function main() {
     getScheduler: () => scheduler,
     getSettings: () => getAllSettings(db),
     onQuit: () => requestQuit(db),
+    onCheckUpdates: () => {
+      updater?.check();
+      mainWindow?.show();
+      mainWindow?.focus();
+    },
   });
   quitDb = db;
+  updater.start();
+  updater.on("state", () => trayHandle?.refresh());
 
   applyRunAtLogin(getAllSettings(db).runAtLogin);
 

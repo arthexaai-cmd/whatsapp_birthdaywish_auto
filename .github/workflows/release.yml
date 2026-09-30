@@ -1,0 +1,38 @@
+# Builds the Windows installer and publishes it as a GitHub Release when a
+# version tag is pushed (npm version minor && git push --follow-tags).
+# Installed apps read this release (via latest.yml) to offer the update.
+# See docs/RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write # electron-builder uploads the installer to the release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Never ship a build that fails its own tests.
+      - run: npm test
+
+      - name: Tag must match package.json version
+        run: node scripts/release-check.mjs
+        env:
+          TAG: ${{ github.ref_name }}
+
+      - name: Build and publish
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

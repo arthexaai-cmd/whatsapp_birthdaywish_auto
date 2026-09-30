@@ -6,6 +6,7 @@ import Schedule from "./dashboard/Schedule.jsx";
 import History from "./dashboard/History.jsx";
 import Reports from "./dashboard/Reports.jsx";
 import Settings from "./dashboard/Settings.jsx";
+import UpdateBanner from "../components/UpdateBanner.jsx";
 
 const TABS = [
   { key: "home", label: "Dashboard" },
@@ -40,6 +41,7 @@ export default function Dashboard({ settings, waState, onSettingsChange, onReope
         </div>
       </div>
       <div className="main-content">
+        <UpdateBanner />
         {tab === "home" && <Home settings={settings} waState={waState} onReopenWizard={onReopenWizard} />}
         {tab === "contacts" && <Contacts />}
         {tab === "messages" && <Messages />}

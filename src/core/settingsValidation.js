@@ -54,6 +54,7 @@ const VALIDATORS = {
   schedulingPaused: (v) => (isBool(v) ? v : fail("schedulingPaused must be true or false.")),
   catchUpOnLaunch: (v) => (isBool(v) ? v : fail("catchUpOnLaunch must be true or false.")),
   runAtLogin: (v) => (isBool(v) ? v : fail("runAtLogin must be true or false.")),
+  updateCheckEnabled: (v) => (isBool(v) ? v : fail("updateCheckEnabled must be true or false.")),
   selfNotifyEnabled: (v) => (isBool(v) ? v : fail("selfNotifyEnabled must be true or false.")),
   riskAcknowledged: (v) => (isBool(v) ? v : fail("riskAcknowledged must be true or false.")),
   scheduledTime: (v) => (typeof v === "string" && HHMM.test(v) ? v : fail("the scheduled time must be in HH:MM form.")),

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { friendlyError } from "../../errors.js";
 import ClockCard from "../../components/ClockCard.jsx";
 import ResetCard from "../../components/ResetCard.jsx";
+import UpdatesCard from "../../components/UpdatesCard.jsx";
 
 export default function Settings({ settings, waState, onSettingsChange, onReopenWizard }) {
   const [appInfo, setAppInfo] = useState(null);
@@ -50,6 +51,8 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
       <h1>Settings</h1>
 
       <ClockCard settings={settings} />
+
+      <UpdatesCard version={appInfo?.version} settings={settings} onSettingsChange={onSettingsChange} />
 
       <div className="card stack">
         <h3>WhatsApp</h3>

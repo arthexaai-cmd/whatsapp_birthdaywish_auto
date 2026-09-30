@@ -8,8 +8,10 @@ import { registerWhatsappIpc } from "./whatsapp.js";
 import { registerRunIpc } from "./run.js";
 import { registerClockIpc } from "./clock.js";
 import { registerReportsIpc } from "./reports.js";
+import { registerUpdatesIpc } from "./updates.js";
 
-export function registerAllIpc({ db, mainWindow, onScheduleChanged, onFactoryReset }) {
+export function registerAllIpc({ db, mainWindow, onScheduleChanged, onFactoryReset, updater, getInstallContext }) {
+  registerUpdatesIpc(updater, mainWindow, getInstallContext);
   registerContactsIpc(db);
   registerMessagesIpc(db);
   registerSettingsIpc(db, { onScheduleChanged, onFactoryReset });

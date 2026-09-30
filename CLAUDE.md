@@ -16,7 +16,7 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 267 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm test          # vitest run -- 290 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
 npm run dev       # Vite (localhost:5173, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```
@@ -59,6 +59,7 @@ a test, not in `electron/`.
   - `closeWarning.js` — `closeDecision()`: what the close/quit dialog says (none/info/warn/danger). `main.js` (`requestQuit`, window `close`, `before-quit`) shows it; tray Quit goes through `requestQuit`. OS shutdown (`session-end`) is never blocked.
   - `settingsValidation.js` — `validateSetting(key, value)`: allowlist + range checks for everything the renderer writes via `settings:set` (bad batch size / timezone / times rejected; main-only keys like `lastReminderDate`, `dailyCapMax`, `hasEverPaired` blocked). New renderer-writable settings must be added here.
   - `importGuard.js` — Excel import IPC guard: only the dialog-picked path may be read, and confirm refuses if the file changed since the preview.
+  - `updatePolicy.js` — `canInstallNow()` (refuses an update install during a run, or within 30 min of an Automatic-mode send), `reduceUpdateState()` (the update state machine the UI renders), `shouldCheckNow()`. `electron/updater.js` wraps `electron-updater` (packaged app only; `autoDownload`/`autoInstallOnAppQuit` off; nothing installs without a click); `electron/ipc/updates.js` + `window.api.updates`; UI in `UpdateBanner.jsx` / `UpdatesCard.jsx`. Releases are built by `.github/workflows/release.yml` on a `v*.*.*` tag (see `docs/RELEASING.md`). The feed override `BIRTHDAY_BOT_UPDATE_URL` only works together with `BIRTHDAY_BOT_USER_DATA` (test mode).
   - `reset.js` — `wipeAppData(userDataPath)` for factory reset. Deletes the
     DB (+ WAL/SHM), `wa-session/` and `wwebjs-cache/`; keeps the `chromium/`
     download cache.

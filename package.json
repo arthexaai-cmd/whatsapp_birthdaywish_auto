@@ -16,11 +16,13 @@
     "dev:electron": "wait-on tcp:5173 && cross-env ELECTRON_DEV=true electron .",
     "build:ui": "vite build",
     "build": "npm run build:ui && electron-builder",
+    "release": "npm run build:ui && electron-builder --publish always",
     "test": "vitest run"
   },
   "dependencies": {
     "@puppeteer/browsers": "^3.2.2",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.9",
     "libphonenumber-js": "^1.11.12",
     "puppeteer-core": "^23.6.0",
     "qrcode": "^1.5.4",
@@ -52,6 +54,14 @@
       "src/core/**/*",
       "dist-ui/**/*",
       "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "arthexaai-cmd",
+        "repo": "whatsapp_birthdaywish_auto",
+        "releaseType": "release"
+      }
     ],
     "extraResources": [
       {

@@ -15,3 +15,6 @@ wa-session/
 .wa-birthday-bot/
 .wwebjs_cache/
 .wwebjs_auth/
+
+# Local update-flow test builds
+dist-update-test/

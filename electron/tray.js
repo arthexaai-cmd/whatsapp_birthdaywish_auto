@@ -15,7 +15,7 @@ let tray = null;
 const FALLBACK_ICON_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAN0lEQVR4nO3OwQkAIAwAsU7RoVzTQesO0iJCDu6fyL3q5QEAAADwDeAmAAAAAACAVsDUAAAAAAdkgVaSD2pb/wAAAABJRU5ErkJggg==";
 
-export function createTray({ getMainWindow, getScheduler, getSettings, onQuit }) {
+export function createTray({ getMainWindow, getScheduler, getSettings, onQuit, onCheckUpdates }) {
   // Packaged: build/ isn't inside app.asar, so the icon ships as an extra
   // resource (see package.json). A missing icon used to give an empty image,
   // i.e. a blank slot in the system tray -- so fall back to an embedded copy.
@@ -68,6 +68,7 @@ export function createTray({ getMainWindow, getScheduler, getSettings, onQuit })
           win?.webContents.send("tray:toggleScheduling");
         },
       },
+      { label: "Check for updates", click: () => onCheckUpdates?.() },
       { type: "separator" },
       {
         label: "Quit",

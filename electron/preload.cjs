@@ -64,6 +64,13 @@ contextBridge.exposeInMainWorld("api", {
     onProgress: (callback) => on("run:progress", callback),
     onAutoStarted: (callback) => on("run:autoStarted", callback),
   },
+  updates: {
+    getState: () => ipcRenderer.invoke("updates:getState"),
+    check: () => ipcRenderer.invoke("updates:check"),
+    download: () => ipcRenderer.invoke("updates:download"),
+    install: () => ipcRenderer.invoke("updates:install"),
+    onState: (callback) => on("updates:state", callback),
+  },
   tray: {
     onRunNow: (callback) => on("tray:runNow", callback),
     onToggleScheduling: (callback) => on("tray:toggleScheduling", callback),
