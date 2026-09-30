@@ -282,7 +282,11 @@ async function requestQuit(db) {
         cancelId: decision.cancelId,
         noLink: true,
       });
-      if (response !== decision.quitButtonIndex) return;
+      if (response !== decision.quitButtonIndex) {
+        // "Minimize to tray" (the warn dialog): keep running, and actually get out of the way.
+        if (decision.level === "warn") mainWindow?.hide();
+        return;
+      }
     } finally {
       quitDialogOpen = false;
     }
