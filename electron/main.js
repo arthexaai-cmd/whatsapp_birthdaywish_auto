@@ -2,7 +2,8 @@
 // tray, and the scheduler. Everything domain-specific (DB, engine, WhatsApp,
 // scheduling math) lives in its own module -- this file is just the glue.
 
-import { app, BrowserWindow, Notification, dialog } from "electron";
+import { app, BrowserWindow, Notification, dialog, shell } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { openDb, closeDb } from "./db.js";
@@ -298,8 +299,30 @@ function applyRunAtLogin(enabled) {
   // Only the installed app: from `npm run dev` this would register the bare
   // electron.exe, and Windows would launch a blank Electron at every login.
   if (!app.isPackaged) return;
-  if (process.platform === "win32" || process.platform === "darwin") {
-    app.setLoginItemSettings({ openAtLogin: !!enabled, openAsHidden: true, args: ["--hidden"] });
+  if (process.platform === "win32") {
+    // Windows did not run the Run-registry entry Electron writes for
+    // setLoginItemSettings on the test machine (its own startup log listed every
+    // other Run item and never ours), so use a Startup-folder shortcut, which
+    // Windows does run. The window stays hidden via --hidden.
+    const link = path.join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "Birthday Bot.lnk");
+    try {
+      if (enabled) {
+        shell.writeShortcutLink(link, "create", {
+          target: process.execPath,
+          args: "--hidden",
+          cwd: path.dirname(process.execPath),
+          description: "Birthday Bot (starts in the tray)",
+        });
+      } else {
+        fs.rmSync(link, { force: true });
+      }
+    } catch (err) {
+      console.error("[startup] could not update the Startup shortcut:", err);
+    }
+    // Remove the Run entry older builds registered, so nothing launches twice.
+    app.setLoginItemSettings({ openAtLogin: false, args: ["--hidden"] });
+  } else if (process.platform === "darwin") {
+    app.setLoginItemSettings({ openAtLogin: !!enabled, openAsHidden: true });
   }
 }
 
