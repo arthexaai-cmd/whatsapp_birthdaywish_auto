@@ -11,10 +11,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let tray = null;
 
+// The 32x32 placeholder from build/tray-icon.png, embedded as a last resort.
+const FALLBACK_ICON_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAN0lEQVR4nO3OwQkAIAwAsU7RoVzTQesO0iJCDu6fyL3q5QEAAADwDeAmAAAAAACAVsDUAAAAAAdkgVaSD2pb/wAAAABJRU5ErkJggg==";
+
 export function createTray({ getMainWindow, getScheduler, getSettings, onQuit }) {
-  const iconPath = path.join(__dirname, "..", "build", "tray-icon.png");
-  const icon = nativeImage.createFromPath(iconPath);
-  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
+  // Packaged: build/ isn't inside app.asar, so the icon ships as an extra
+  // resource (see package.json). A missing icon used to give an empty image,
+  // i.e. a blank slot in the system tray -- so fall back to an embedded copy.
+  const iconPath = app.isPackaged ? path.join(process.resourcesPath, "tray-icon.png") : path.join(__dirname, "..", "build", "tray-icon.png");
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    console.error(`[tray] icon not found at ${iconPath}; using the built-in one`);
+    icon = nativeImage.createFromDataURL(`data:image/png;base64,${FALLBACK_ICON_PNG_BASE64}`);
+  }
+  tray = new Tray(icon);
   tray.setToolTip("Birthday Bot");
 
   const rebuildMenu = () => {

@@ -57,6 +57,10 @@
       {
         "from": "config",
         "to": "config"
+      },
+      {
+        "from": "build/tray-icon.png",
+        "to": "tray-icon.png"
       }
     ],
     "win": {
