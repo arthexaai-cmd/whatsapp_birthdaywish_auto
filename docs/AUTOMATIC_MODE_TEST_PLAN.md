@@ -29,11 +29,14 @@ Automatic mode acts with nobody watching, so it was tested in a way that does no
 | A16 | Manual-mode reminder: nothing sent, once-per-day guard set, not repeated on a second launch | fake | Pass |
 | B1 | **Live unattended automatic send, real WhatsApp**: 3 due (Arradhya on time; Prajwal, Siddhesh belated), Pritam (3 days ago) not messaged; scheduled fire -> saved-session connect -> paced sends -> complete (125 s), no self-notify failure | real | Pass |
 
+| B2 | **Live launch catch-up, real WhatsApp**: app opened after the 09:15 fire time (Automatic, catch-up ON), only Pritam due; connected from the saved session and sent exactly one message in 24 s, one History row | real | Pass |
+
+B1 was also confirmed on the recipients' side: all 3 messages were delivered and the summary arrived on the tester's phone.
+
 ## Known limit (accepted)
 With a daily cap and only the 2-day catch-up window, a person held back by the cap for more than two days is never sent (A9). With the default cap of 60 this needs more than 60 birthdays in a day, so it was accepted as low risk. A 5-day window clears the same backlog.
 
 ## Not run
-- Live catch-up on launch with real WhatsApp (catch-up itself is proven with the fake client).
 - A real overnight run, and a real OS sleep / lid close (only the wake event is simulated; the OS delivering it is Electron's `powerMonitor`).
 - A real system-clock change (needs a VM; the wall-clock poll, DST maths and clock jumps are covered above).
-- Confirming on the recipients' phones and the desktop toasts for B1 (observed by the user, not by the test).
+- The exact wording of the desktop toasts (the tester did not report it).
