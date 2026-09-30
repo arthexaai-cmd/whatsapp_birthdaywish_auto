@@ -17,6 +17,7 @@ import { registerAllIpc } from "./ipc/index.js";
 import { createTray } from "./tray.js";
 import { Scheduler } from "./scheduler.js";
 import { Updater } from "./updater.js";
+import { installVirtualClock, startTestControlServer, installFakeWhatsappIfRequested } from "./testHarness.js";
 import { runManager } from "./runManager.js";
 import { whatsappManager } from "./whatsappManager.js";
 
@@ -48,6 +49,10 @@ if (process.env.BIRTHDAY_BOT_USER_DATA) app.setPath("userData", process.env.BIRT
 
 // Only one instance may run at a time -- two copies would race on the same
 // SQLite file and the same WhatsApp session.
+// Test mode only (needs BIRTHDAY_BOT_TEST_CLOCK=1 AND a scratch BIRTHDAY_BOT_USER_DATA): lets automated
+// tests drive the app's clock. A normal install never enables it.
+installVirtualClock();
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -187,7 +192,9 @@ async function main() {
       }
     },
   });
+  installFakeWhatsappIfRequested(); // test mode only: must precede scheduler.start(), whose launch catch-up can start a run
   scheduler.start();
+  startTestControlServer({ getScheduler: () => scheduler }); // no-op outside test mode
 
   trayHandle = createTray({
     getMainWindow: () => mainWindow,
