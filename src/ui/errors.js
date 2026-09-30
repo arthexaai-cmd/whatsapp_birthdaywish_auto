@@ -17,6 +17,11 @@ export function cleanMessage(err) {
 }
 
 const RULES = [
+  // WhatsApp Web stopped answering (most often the internet dropped mid-send); puppeteer's
+  // wording tells the user to change a setting they can't touch.
+  [/protocolTimeout|callFunctionOn timed out|Navigation timeout|Waiting for selector/i,
+    "WhatsApp didn't respond in time -- usually a lost internet connection. It will be retried on the next send."],
+
   // --- Network --- (first: "net::ERR_INTERNET_DISCONNECTED" would otherwise hit the generic /disconnected/ rule below)
   [/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|net::ERR_/i, "Couldn't reach the internet. Check your connection and try again."],
 
@@ -63,6 +68,11 @@ const RULES = [
  */
 export function friendlyError(err) {
   console.error(err);
+  return friendlyMessage(err);
+}
+
+/** Same mapping as friendlyError but without logging -- for text already stored (e.g. History rows). */
+export function friendlyMessage(err) {
   const msg = cleanMessage(err);
   for (const [pattern, text] of RULES) {
     const m = msg.match(pattern);

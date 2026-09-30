@@ -16,7 +16,7 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 266 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm test          # vitest run -- 267 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
 npm run dev       # Vite (localhost:5173, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```
@@ -174,7 +174,9 @@ a test, not in `electron/`.
   - `renderMessage` appends a random emoji about 60% of the time, so assert
     message text with a prefix match, not equality.
 - SheetJS `xlsx` is the 0.20.x build from cdn.sheetjs.com (the npm 0.18.5 has unfixed CVEs). Its ESM build needs `XLSX.set_fs(fs)` before any `readFile`/`writeFile` (done in `xlsx.js` and `progress.js`).
-- The login item passes `--hidden` (Windows has no open-as-hidden) and is only registered by the packaged app.
+- Start-at-login on Windows is a **Startup-folder shortcut** with `--hidden` (`applyRunAtLogin` in `main.js`), only for the packaged app. Electron's own Run-registry login item was never executed by Windows on the test machine (its startup log listed every other Run entry and skipped ours). The old Run entry is removed on each launch.
+- The tray icon ships as an extra resource (`build/tray-icon.png` is not in `app.asar`); `tray.js` falls back to an embedded copy so the tray is never blank.
+- `whatsappManager.connect()` health-checks a "ready" client (`clientHealth.js`) and watches the browser process, because whatsapp-web.js emits no event when its browser dies.
 - Known rough edges:
   - `--no-sandbox` is passed to the system browser, and `wa-session/` is stored unencrypted in userData.
   - A network error during the "is this number on WhatsApp?" lookup counts as a failed send (2 in a row abort the run) -- deliberate anti-ban behavior.

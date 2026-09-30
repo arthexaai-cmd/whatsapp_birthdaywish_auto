@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { friendlyError, cleanMessage } from "../src/ui/errors.js";
+import { friendlyError, friendlyMessage, cleanMessage } from "../src/ui/errors.js";
 
 const ipc = (channel, msg) => new Error(`Error invoking remote method '${channel}': Error: ${msg}`);
 
@@ -66,6 +66,13 @@ describe("friendlyError", () => {
 
   it("F14: net::ERR_INTERNET_DISCONNECTED is a no-internet message", () => {
     expect(friendlyError(ipc("x", "net::ERR_INTERNET_DISCONNECTED"))).toMatch(/internet/i);
+  });
+
+  it("puppeteer's protocolTimeout text (seen when the internet drops mid-send) becomes plain language", () => {
+    const raw = "Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.";
+    expect(friendlyError(new Error(raw))).toMatch(/didn't respond in time/);
+    expect(friendlyMessage({ message: raw })).toMatch(/lost internet connection/);
+    expect(friendlyMessage({ message: raw })).not.toMatch(/protocolTimeout/);
   });
 
   it("never leaks the IPC wrapper or a stack-style prefix for unknown errors", () => {

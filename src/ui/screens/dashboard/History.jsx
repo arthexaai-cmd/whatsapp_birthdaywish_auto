@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { friendlyMessage } from "../../errors.js";
 
 export default function History() {
   const [runs, setRuns] = useState([]);
@@ -80,7 +81,7 @@ export default function History() {
                   <td className="muted">{s.phone}</td>
                   <td>{s.status}</td>
                   <td className="muted">{s.belated ? "Yes" : ""}</td>
-                  <td className="muted">{s.error || ""}</td>
+                  <td className="muted">{s.error ? friendlyMessage({ message: s.error }) : ""}</td>
                 </tr>
               ))}
               {sends.length === 0 && (

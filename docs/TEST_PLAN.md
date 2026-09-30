@@ -40,6 +40,21 @@ Accepted / documented, not changed: F8 (lookup errors count as failed sends, by 
 Installer builds with SheetJS 0.20.3. Driving the packaged app: settings allowlist (S2), batch size 0 and a bad timezone refused (F4, F5), import of a non-picked path refused (S3), month 0 / 31 Apr contact refused (F12), `window.open` and navigation to a remote site blocked (S4), login entry written with `--hidden` (F2).
 Also on the packaged app: consent gating; Edge found and a real WhatsApp Web QR shown (no account paired); QR timeout fires at ~3 min (F15); Cancel mid-pairing is instant and reconnecting afterwards works (F16); a scheduled run with no WhatsApp session fails cleanly after the 20 s QR timeout and leaves nothing stuck; **auto-mode fire at a scheduled evening time now fires on time (F17; it did not before the fix)**.
 
+## Real WhatsApp results (spare sender, 4 consenting recipients, scratch data folder)
+| Case | Result |
+|---|---|
+| Normal + belated send; exact reviewed text received by both; summary received on self-notify | Pass |
+| Duplicate guard (second run right after) sends nothing | Pass |
+| Spacing between sends (measured 108 s with the 40-150 s setting) | Pass |
+| E16 Stop mid-run | Pass: first sent, second untouched, run `cancelled` |
+| E11 browser killed mid-run | **Bug found (F19)**, fixed: recovers automatically, next run reconnects and sends |
+| Reconnect after laptop restart from saved session | Pass (34 s, no QR) |
+| E5 unlinked from phone mid-run | Pass: "unlinked" in ~16 s, second send failed cleanly and stays retryable |
+| E2 Wi-Fi off mid-run | Pass: second attempt failed after WhatsApp's 3-minute timeout, recorded retryable; with Wi-Fi back the next run sent it in 9 s. Raw puppeteer text in History was replaced by a plain message (F21) |
+| Login startup | **Bug found (F18)**: Windows never ran Electron's Run entry. Fixed with a Startup shortcut; verified after a real restart |
+| Tray icon | **Bug found (F20)**: icon missing from the package (blank slot). Fixed, verified visible |
+| Typing indicator | Cosmetic; the step fails silently with the current WhatsApp Web. Sends unaffected |
+
 ## Still to verify by hand
 - F2: restart Windows and confirm no window appears at login (only the registry entry was checked).
 - F3: an old dev run left `electron.app.Electron` in `HKCU\...\Run` pointing at the bare `node_modules\electron\dist\electron.exe`. Remove it: `Remove-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name "electron.app.Electron"`.
