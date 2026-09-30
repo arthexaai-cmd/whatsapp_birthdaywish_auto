@@ -55,11 +55,18 @@ Also on the packaged app: consent gating; Edge found and a real WhatsApp Web QR 
 | Tray icon | **Bug found (F20)**: icon missing from the package (blank slot). Fixed, verified visible |
 | Typing indicator | Cosmetic; the step fails silently with the current WhatsApp Web. Sends unaffected |
 
-## Still to verify by hand
-- F2: restart Windows and confirm no window appears at login (only the registry entry was checked).
-- F3: an old dev run left `electron.app.Electron` in `HKCU\...\Run` pointing at the bare `node_modules\electron\dist\electron.exe`. Remove it: `Remove-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name "electron.app.Electron"`.
-- S3/F10 in the real file dialog (edit the file between preview and confirm), and the close/quit dialogs (section G).
-- Everything needing WhatsApp or a VM: sections B (sleep, clock), E, F (sleep/wake), J.
+## Verified by hand on the installed app (2026-09-30)
+Excel import/export in the real dialogs (incl. file-changed-after-preview refusal); close/quit warnings; start at login after a real restart (tray icon, app running); **real in-app update 2.1.0 -> 2.1.2 from GitHub Releases** (installer downloaded by the updater, app restarted itself, Startup shortcut and data intact); **uninstall removes the app, the registry entry and the Startup shortcut** (data folder kept, as intended). CI and the release workflow run green on GitHub (after fixing a duplicate-release bug, see F-notes in RELEASING.md).
+
+## Automatic mode: what is and is not proven
+Proven: scheduler timing on the packaged app (an automatic fire at a scheduled evening time started a run on time, after the day-off-by-one fix); fire-time math across 9 time zones and DST (unit tests); pacing, warm-up cap, quiet hours, and the quiet-hours re-check at send time (unit tests); retry, abort-after-2-failures, cancel, not-on-WhatsApp, duplicate guard (unit tests + real sends via manual runs, same engine); recovery after a dead browser, a phone-side unlink, and lost internet (real); update install refused near an automatic send (unit + live).
+
+**Not yet run live:** a full unattended automatic send with a paired session (scheduler fires -> saved-session connect -> start jitter -> paced sends -> summary notification); the launch catch-up run after the fire time passed while the app was closed; catch-up after sleep/wake or a closed lid; quiet hours hit during a live run; the "run failed" / "run finished" desktop notifications being seen; a multi-day soak (section J).
+
+## Still open
+- F3: the old dev entry `electron.app.Electron` may still be in `HKCU\...\Run`. Remove it: `Remove-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name "electron.app.Electron"`.
+- Delete the two duplicate v2.1.1 releases on GitHub (only tidiness).
+- Anything needing a VM (clock change, section B15).
 
 ## A. Install and first run
 | # | Step | Expected | Result | Notes |
