@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-birthday-bot",
   "productName": "Birthday Bot",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "private": true,
   "type": "module",
   "description": "Standalone desktop app: sends birthday wishes over WhatsApp Web on a schedule, with human-like pacing.",
