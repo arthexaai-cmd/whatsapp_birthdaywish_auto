@@ -33,6 +33,11 @@ function parseHHMM(hhmm) {
  * catch-up check uses "in the past" as the trigger condition).
  */
 export function computeTodayFireDate(settings, now = new Date()) {
+  return fireDateForLocalDay(settings, now, 0);
+}
+
+/** The fire instant on the local calendar day that is `dayOffset` days after `now`'s local day. */
+function fireDateForLocalDay(settings, now, dayOffset) {
   const { h, m } = parseHHMM(settings.scheduledTime);
   const tz = safeTimezone(settings.timezone);
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -42,24 +47,28 @@ export function computeTodayFireDate(settings, now = new Date()) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23", // 00-23 (hour12:false renders midnight as "24" in some engines)
   });
-  const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value]));
-  const targetMinutes = h * 60 + m;
+  // The wall-clock reading of an instant in tz, expressed as if it were UTC.
+  const wallAsUtc = (date) => {
+    const p = Object.fromEntries(fmt.formatToParts(date).map((x) => [x.type, x.value]));
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute));
+  };
 
-  // JS has no native tz-aware date constructor, so: build a naive UTC guess
-  // from today's Y/M/D (in tz) + target time, then correct by checking what
-  // local time that guess actually renders as in tz and shifting until it
-  // matches h:m. Converges in at most a couple of iterations for any real
-  // timezone (handles fixed offsets and DST transitions alike).
-  let candidate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), h, m, 0));
-  for (let i = 0; i < 3; i++) {
-    const rendered = fmt.formatToParts(candidate);
-    const rh = Number(rendered.find((p) => p.type === "hour").value);
-    const rm = Number(rendered.find((p) => p.type === "minute").value);
-    const diffMinutes = targetMinutes - (rh * 60 + rm);
-    if (diffMinutes === 0) break;
-    candidate = new Date(candidate.getTime() + diffMinutes * 60_000);
+  // JS has no native tz-aware date constructor, so: take today's date in tz
+  // with the target time, and shift a naive UTC guess by the *full* wall-clock
+  // difference (date AND time) until it renders as the target. Comparing only
+  // hours/minutes (as this once did) lands on the wrong DAY whenever the zone
+  // offset pushes the guess across midnight -- e.g. any evening time in IST,
+  // which fired a day late, or an early-morning time in New York, which landed
+  // in the past. Converges in a couple of iterations, DST included.
+  const todayParts = Object.fromEntries(fmt.formatToParts(now).map((x) => [x.type, x.value]));
+  const targetWall = Date.UTC(Number(todayParts.year), Number(todayParts.month) - 1, Number(todayParts.day) + dayOffset, h, m);
+  let candidate = new Date(targetWall);
+  for (let i = 0; i < 4; i++) {
+    const diffMs = targetWall - wallAsUtc(candidate);
+    if (diffMs === 0) break;
+    candidate = new Date(candidate.getTime() + diffMs);
   }
   return candidate;
 }
@@ -68,10 +77,9 @@ export function computeTodayFireDate(settings, now = new Date()) {
 export function computeNextFireDate(settings, now = new Date()) {
   const todayFire = computeTodayFireDate(settings, now);
   if (todayFire.getTime() > now.getTime()) return todayFire;
-  // Roll forward exactly one day and recompute (handles DST correctly,
-  // unlike naively adding 86_400_000 ms).
-  const tomorrowNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  return computeTodayFireDate(settings, tomorrowNow);
+  // Roll forward one local CALENDAR day. Adding 24 h to `now` is wrong: on a
+  // 23 h (spring-forward) day it can land on the day after tomorrow.
+  return fireDateForLocalDay(settings, now, 1);
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

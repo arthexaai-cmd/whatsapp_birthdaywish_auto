@@ -97,7 +97,7 @@ function localMinutesInQuietHours(date, tz, quietHours) {
     timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23", // never "24" for midnight
   });
   const parts = fmt.formatToParts(date);
   const h = Number(parts.find((p) => p.type === "hour").value);

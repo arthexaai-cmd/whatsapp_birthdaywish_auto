@@ -88,3 +88,16 @@ describe("buildSchedule and quiet hours", () => {
     for (let i = 1; i < scheduled.length; i++) expect(scheduled[i].sendAt.getTime()).toBeGreaterThan(scheduled[i - 1].sendAt.getTime());
   });
 });
+
+describe("quiet hours around midnight", () => {
+  const cfg = { ...P, startJitterMinutes: [0, 0], withinBatchSeconds: [60, 60], betweenBatchMinutes: [0, 0], quietHours: ["21:30", "08:30"] };
+  it("00:00 and 00:30 are quiet; 08:29 quiet; 08:30 not", () => {
+    const at = (iso) => buildSchedule([[{ id: 1 }]], cfg, new Date(iso), "UTC").scheduled.length; // 1 = allowed
+    expect(at("2026-05-10T00:00:00Z")).toBe(0);
+    expect(at("2026-05-10T00:30:00Z")).toBe(0);
+    expect(at("2026-05-10T08:29:00Z")).toBe(0);
+    expect(at("2026-05-10T08:30:00Z")).toBe(1);
+    expect(at("2026-05-10T21:29:00Z")).toBe(1);
+    expect(at("2026-05-10T21:30:00Z")).toBe(0);
+  });
+});

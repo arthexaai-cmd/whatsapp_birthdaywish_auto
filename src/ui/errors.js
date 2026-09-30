@@ -22,10 +22,12 @@ const RULES = [
 
   // --- WhatsApp connection ---
   [/disconnected: LOGOUT|auth failure/i, "WhatsApp logged this computer out. Click the button below to show a new QR code and scan it again."],
+  [/connection cancelled/i, "WhatsApp connection cancelled."],
   [/Timed out waiting for the WhatsApp QR/i, "The QR code wasn't scanned in time. Click the button below to get a new one."],
   [/disconnected: (CONFLICT|UNPAIRED|UNLAUNCHED|TOS_BLOCK|SMB_TOS_BLOCK)/i, "WhatsApp ended the session. Open WhatsApp on your phone, then reconnect from here."],
   [/disconnected: NAVIGATION|Execution context was destroyed|detached Frame|Target closed|Session closed|Protocol error/i,
     "The connection to WhatsApp Web was interrupted. Please try again."],
+  [/browser_closed|connection_lost/i, "The WhatsApp connection was lost (its browser closed). Reconnect and try again."],
   [/disconnected/i, "WhatsApp disconnected. Please try connecting again."],
   [/browser is already running|already running for/i, "WhatsApp is still shutting down from the last attempt. Wait a few seconds and try again."],
   [/No installed browser|no_browser_found/i, "Microsoft Edge or Google Chrome is needed to connect to WhatsApp, and neither was found on this computer."],

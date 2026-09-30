@@ -32,6 +32,11 @@ export function registerWhatsappIpc(db, mainWindow) {
     return whatsappManager.getState();
   });
 
+  ipcMain.handle("whatsapp:cancelConnect", async () => {
+    await whatsappManager.cancelConnect();
+    return whatsappManager.getState();
+  });
+
   ipcMain.handle("whatsapp:unlink", async () => {
     await whatsappManager.unlink();
     return whatsappManager.getState();

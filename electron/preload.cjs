@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld("api", {
     checkBrowser: () => ipcRenderer.invoke("whatsapp:checkBrowser"),
     downloadChromium: () => ipcRenderer.invoke("whatsapp:downloadChromium"),
     connect: () => ipcRenderer.invoke("whatsapp:connect"),
+    cancelConnect: () => ipcRenderer.invoke("whatsapp:cancelConnect"),
     unlink: () => ipcRenderer.invoke("whatsapp:unlink"),
     disconnect: () => ipcRenderer.invoke("whatsapp:disconnect"),
     onState: (callback) => on("whatsapp:state", callback),

@@ -30,7 +30,11 @@ const { Client, LocalAuth } = pkg;
  * @param {string} [opts.executablePath] path to system Chrome/Edge (see electron/browser.js)
  * @param {(qr: string) => void} [opts.onQr] called each time a new QR is issued
  * @param {(status: {phase: string, [k: string]: any}) => void} [opts.onStatus] loading/auth progress
- * @param {number} [opts.qrTimeoutMs] how long to wait for a scan before giving up (default 2 min)
+ * @param {number} [opts.qrTimeoutMs] how long to wait for a scan before giving up (default 2 min),
+ *   counted from the FIRST QR. WhatsApp rotates the QR every ~20 s indefinitely, so a timer that
+ *   restarted on every rotation would never fire (the pairing screen would wait forever).
+ * @param {AbortSignal} [opts.signal] cancels the attempt: the browser is torn down and the promise
+ *   rejects with an error whose `cancelled` is true.
  */
 export async function createClient({
   sessionDir,
@@ -39,6 +43,7 @@ export async function createClient({
   onQr,
   onStatus,
   qrTimeoutMs = 120_000,
+  signal,
 }) {
   const client = new Client({
     authStrategy: new LocalAuth({ dataPath: sessionDir }),
@@ -103,10 +108,8 @@ export async function createClient({
     onQrEvent = (qr) => {
       onStatus?.({ phase: "qr" });
       onQr?.(qr);
-      // Reset the timeout on every new QR (WhatsApp rotates it periodically
-      // while waiting), so the window is "time since the LAST QR", not since
-      // the first one.
-      clearQrTimer();
+      // Started once, at the first QR -- NOT reset on rotation (see qrTimeoutMs).
+      if (qrTimer) return;
       qrTimer = setTimeout(() => {
         fail(
           new Error(
@@ -127,6 +130,16 @@ export async function createClient({
     // because an old one still holds the profile). Unhandled, that left the
     // caller waiting forever on a `ready` that would never come.
     client.initialize().catch(fail);
+
+    if (signal) {
+      const cancel = () => {
+        const err = new Error("WhatsApp connection cancelled.");
+        err.cancelled = true;
+        fail(err);
+      };
+      if (signal.aborted) cancel();
+      else signal.addEventListener("abort", cancel, { once: true });
+    }
   });
 
   await ready;

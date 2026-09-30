@@ -29,15 +29,20 @@ All of these were proven by automated tests first and are now fixed; the tests s
 | S4 | No navigation guard | `setWindowOpenHandler` deny + `will-navigate` guard |
 | S5 | Export formula injection | Formula-trigger text prefixed with `'` |
 | F2/F3 | Window popped up at login; dev run registered bare electron.exe | `--hidden` argument; login item only when packaged |
+| F15 | Unscanned QR never timed out (each rotated QR restarted the timer), so pairing waited forever | Timeout counts from the first QR (`whatsapp.js`) |
+| F16 | Cancel/Unlink/Disconnect during pairing did nothing and left the browser running; no Cancel button | Pairing is abortable (`cancelConnect`), Cancel button on the pairing screen |
+| F19 (High) | After the WhatsApp browser died (crash/kill) the app still said "ready" and every later run reused the dead connection ("detached Frame") until restart | Browser-close detection + health check before each run (`clientHealth.js`); verified on a real run: reconnected by itself and sent |
+| F17 (High) | **Scheduler fired a day late** for evening times in IST (after 18:30) and could fire repeatedly for early-morning times in US zones; also skipped a day across spring-forward | `computeTodayFireDate` compares the full wall-clock date, rolls by calendar day |
 
 Accepted / documented, not changed: F8 (lookup errors count as failed sends, by design), S6 (`--no-sandbox`, unencrypted session folder), and the remaining `npm audit` items, which are transitive (`extract-zip` via puppeteer / whatsapp-web.js) with no non-breaking fix.
 
 ## Verified on the packaged build (scratch data folder)
 Installer builds with SheetJS 0.20.3. Driving the packaged app: settings allowlist (S2), batch size 0 and a bad timezone refused (F4, F5), import of a non-picked path refused (S3), month 0 / 31 Apr contact refused (F12), `window.open` and navigation to a remote site blocked (S4), login entry written with `--hidden` (F2).
+Also on the packaged app: consent gating; Edge found and a real WhatsApp Web QR shown (no account paired); QR timeout fires at ~3 min (F15); Cancel mid-pairing is instant and reconnecting afterwards works (F16); a scheduled run with no WhatsApp session fails cleanly after the 20 s QR timeout and leaves nothing stuck; **auto-mode fire at a scheduled evening time now fires on time (F17; it did not before the fix)**.
 
 ## Still to verify by hand
 - F2: restart Windows and confirm no window appears at login (only the registry entry was checked).
-- F3: an old dev run left `electron.app.Electron` in `HKCU...Run` pointing at the bare `node_moduleselectrondistelectron.exe`. Remove it: `Remove-ItemProperty -Path HKCU:SoftwareMicrosoftWindowsCurrentVersionRun -Name "electron.app.Electron"`.
+- F3: an old dev run left `electron.app.Electron` in `HKCU\...\Run` pointing at the bare `node_modules\electron\dist\electron.exe`. Remove it: `Remove-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name "electron.app.Electron"`.
 - S3/F10 in the real file dialog (edit the file between preview and confirm), and the close/quit dialogs (section G).
 - Everything needing WhatsApp or a VM: sections B (sleep, clock), E, F (sleep/wake), J.
 

@@ -7,6 +7,7 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import QRCode from "qrcode";
 import { createClient } from "../src/core/whatsapp.js";
+import { isClientAlive } from "../src/core/clientHealth.js";
 import { findSystemBrowser, findFallbackChromium, downloadFallbackChromium } from "./browser.js";
 import { sessionDir, webVersionCacheDir } from "./db.js";
 
@@ -25,6 +26,8 @@ class WhatsappManager extends EventEmitter {
     this.qrDataUrl = null;
     /** In-flight connect() attempt, shared by concurrent callers. */
     this._connecting = null;
+    /** Cancels that attempt (Cancel button, unlink, disconnect). */
+    this._abort = null;
     /** In-flight browser teardown; every new connect waits for it first. */
     this._teardown = Promise.resolve();
   }
@@ -58,16 +61,35 @@ class WhatsappManager extends EventEmitter {
    * @param {number} [opts.qrTimeoutMs] long for the interactive wizard, short for a background run
    */
   async connect({ userDataPath, qrTimeoutMs = 120_000 } = {}) {
-    if (this.status === "ready" && this.client) return this.client;
+    if (this.status === "ready" && this.client) {
+      // "ready" was true when we connected; the browser may have died since
+      // (crash, killed, sleep). Verify, and if it's gone reconnect instead of
+      // handing out a dead client that fails every send.
+      if (await isClientAlive(this.client)) return this.client;
+      console.warn("[whatsapp] the connection is no longer alive; reconnecting");
+      const dead = this.client;
+      this.client = null;
+      this._setState({ status: "disconnected", error: "connection_lost", qrDataUrl: null });
+      await this._teardownClient(dead);
+    }
     if (!this._connecting) {
-      this._connecting = this._connect({ userDataPath, qrTimeoutMs }).finally(() => {
+      this._abort = new AbortController();
+      this._connecting = this._connect({ userDataPath, qrTimeoutMs, signal: this._abort.signal }).finally(() => {
         this._connecting = null;
+        this._abort = null;
       });
     }
     return this._connecting;
   }
 
-  async _connect({ userDataPath, qrTimeoutMs }) {
+  /** Abort a connect attempt that is still waiting (e.g. for a QR scan) and wait for its browser to exit. */
+  async cancelConnect() {
+    if (!this._connecting) return;
+    this._abort?.abort();
+    await this._connecting.catch(() => {});
+  }
+
+  async _connect({ userDataPath, qrTimeoutMs, signal }) {
     const browser = this.resolveBrowser(userDataPath);
     if (!browser) {
       this._setState({ status: "error", error: "no_browser_found", qrDataUrl: null });
@@ -87,13 +109,20 @@ class WhatsappManager extends EventEmitter {
     let retriedLaunch = false;
     for (;;) {
       try {
-        const client = await this._createClient(browser, qrTimeoutMs);
+        const client = await this._createClient(browser, qrTimeoutMs, signal);
         this.client = client;
         this._setState({ status: "ready", qrDataUrl: null, error: null });
         client.on("disconnected", (reason) => this._onRuntimeDisconnect(client, reason));
+        // whatsapp-web.js emits no "disconnected" when the browser process itself
+        // dies, so watch the browser directly.
+        client.pupBrowser?.on("disconnected", () => this._onRuntimeDisconnect(client, "browser_closed"));
         return client;
       } catch (err) {
         this.client = null;
+        if (err.cancelled) {
+          this._setState({ status: "disconnected", error: null, qrDataUrl: null });
+          throw err;
+        }
         if (err.reason === "LOGOUT" && !clearedAfterLogout) {
           // The saved session was revoked (unlinked from the phone, or
           // invalidated by WhatsApp). It will never work again, so wipe it
@@ -120,8 +149,9 @@ class WhatsappManager extends EventEmitter {
     }
   }
 
-  _createClient(browser, qrTimeoutMs) {
+  _createClient(browser, qrTimeoutMs, signal) {
     return createClient({
+      signal,
       sessionDir: sessionDir(),
       webVersionCacheDir: webVersionCacheDir(),
       executablePath: browser.executablePath,
@@ -172,6 +202,7 @@ class WhatsappManager extends EventEmitter {
 
   /** Unlink: destroy the client and delete the persisted session so the next connect() re-shows a QR. */
   async unlink() {
+    await this.cancelConnect();
     const client = this.client;
     this.client = null;
     await this._teardownClient(client, { clearSession: true });
@@ -195,6 +226,7 @@ class WhatsappManager extends EventEmitter {
   }
 
   async disconnect() {
+    await this.cancelConnect();
     const client = this.client;
     this.client = null;
     await this._teardownClient(client);

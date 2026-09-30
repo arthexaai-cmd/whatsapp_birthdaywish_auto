@@ -26,11 +26,13 @@ export default function PairStep({ waState, onPaired }) {
     try {
       await window.api.whatsapp.connect();
     } catch (err) {
-      setError(friendlyError(err));
+      if (!/connection cancelled/i.test(err?.message ?? "")) setError(friendlyError(err));
     } finally {
       setConnecting(false);
     }
   };
+
+  const cancelConnect = () => window.api.whatsapp.cancelConnect().catch(() => {});
 
   const handleDownloadChromium = async () => {
     setError(null);
@@ -93,11 +95,15 @@ export default function PairStep({ waState, onPaired }) {
         <div className="qr-box">
           <img src={waState.qrDataUrl} alt="WhatsApp QR code" />
           <p className="muted">Waiting for scan…</p>
+          <button onClick={cancelConnect}>Cancel</button>
         </div>
       ) : (
         <button className="primary" onClick={startConnect} disabled={connecting}>
           {connecting ? "Connecting…" : "Show QR code"}
         </button>
+      )}
+      {connecting && waState?.status !== "qr" && (
+        <button onClick={cancelConnect}>Cancel</button>
       )}
     </div>
   );
