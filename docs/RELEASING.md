@@ -63,3 +63,12 @@ npx electron-builder --config.extraMetadata.version=2.1.0
 BIRTHDAY_BOT_USER_DATA=D:\bb-test-data BIRTHDAY_BOT_UPDATE_URL=http://127.0.0.1:8099 "dist-installer\win-unpacked\Birthday Bot.exe"
 ```
 Do not press **Install and restart** in an unpacked test build: it would run the installer over a real install.
+
+## Troubleshooting
+- **Two releases for one tag, `latest.yml` returns 404** (happened with v2.1.1): electron-builder uploads assets in
+  parallel and each upload can create the release, splitting the files between two copies. `release.yml` now creates
+  the release first and ends with a step that fails unless `latest.yml` is reachable and exactly one release exists
+  for the tag. If it ever happens again: delete the duplicate releases and the tag on GitHub, then release the next
+  patch version (installed apps only update to a *higher* version).
+- **Release workflow fails on "Tag must match package.json version":** run `npm version <x.y.z>` (or edit
+  `package.json`) so the tag is exactly `v<version>`, delete the bad tag (`git push --delete origin <tag>`), and retag.

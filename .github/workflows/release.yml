@@ -32,7 +32,31 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
 
+      # Create the release BEFORE electron-builder uploads. Left to itself it uploads the
+      # installer, the blockmap and latest.yml in parallel and each upload can create the
+      # release if it doesn't exist yet -- which produced two releases for one tag (v2.1.1)
+      # with the assets split between them and latest.yml unreachable, so no installed app
+      # could see the update.
+      - name: Create the release
+        shell: bash
+        run: gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+
       - name: Build and publish
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The whole point of a release is that installed apps can read latest.yml.
+      - name: Verify the update feed is reachable
+        shell: bash
+        run: |
+          curl -fsSL "https://github.com/${{ github.repository }}/releases/download/${TAG}/latest.yml" | tee latest.yml
+          grep -q "version: ${TAG#v}" latest.yml
+          COUNT=$(gh release list --limit 100 --json tagName --jq "[.[] | select(.tagName==\"${TAG}\")] | length")
+          test "$COUNT" = "1" || { echo "Expected exactly one release for $TAG, found $COUNT"; exit 1; }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
