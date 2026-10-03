@@ -36,9 +36,15 @@ describe("renderMessage", () => {
     expect(text).toMatch(/Belated/);
   });
 
-  it("uses salutation over first name when present", () => {
-    const text = renderMessage(person({ salutation: "Dr. Sharma" }), false, messagesConfig, () => 0);
-    expect(text).toContain("Dr. Sharma");
+  it("puts a title salutation in front of the first name", () => {
+    const text = renderMessage(person({ salutation: "Mr" }), false, messagesConfig, () => 0);
+    expect(text).toContain("Mr Priya");
+  });
+
+  it("uses a salutation that already contains the first name as is", () => {
+    const text = renderMessage(person({ salutation: "Dr. Priya" }), false, messagesConfig, () => 0);
+    expect(text).toContain("Dr. Priya");
+    expect(text).not.toContain("Priya Priya");
   });
 
   it("uses a custom message verbatim, substituting only {name}", () => {

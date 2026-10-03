@@ -42,7 +42,7 @@ const SAMPLE_INSTRUCTIONS = [
   ["name", "Yes", "Full name. The first word is used as their first name in messages."],
   ["phone", "Yes", "With country code, e.g. +919812345678. Numbers without one use the app's default country."],
   ["birthdate", "Yes", "DD/MM/YYYY, DD/MM (year unknown), or YYYY-MM-DD."],
-  ["salutation", "No", "How to address them, e.g. \"Sir\", \"Didi\". Leave blank if not needed."],
+  ["salutation", "No", "A title placed before their first name, e.g. \"Mr\", \"Dr\", \"Sir\". Leave blank if not needed."],
   ["custom_message", "No", "A personal message that replaces the usual template for this person."],
   ["skip", "No", "Put \"yes\" to never send to this person. Leave blank otherwise."],
   [],

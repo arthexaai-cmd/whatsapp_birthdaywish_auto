@@ -1,5 +1,6 @@
 # Template pool for birthday messages. {name} is replaced with the
-# recipient's first name (or `salutation` from the roster row, if set).
+# recipient's first name, preceded by the roster row's `salutation` if set
+# ("Mr Abhijit").
 # {wish} and any other {var} are expanded from the `vars` pool below.
 # A trailing emoji is appended ~60% of the time from `emoji`.
 

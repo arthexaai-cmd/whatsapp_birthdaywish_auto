@@ -44,6 +44,16 @@ export function renderMessage(person, belated, messagesConfig, rng = Math.random
   return text;
 }
 
+// A salutation is a title ("Mr", "Dr", "Sir"), so it goes in front of the first
+// name -- "Mr Abhijit". It used to *replace* the name, which produced "Hey Mr,"
+// for the common Excel layout of a short title column. A salutation that already
+// contains the first name (e.g. "Dr. Sharma") is a full form of address and is
+// used as is, so it isn't doubled up.
 function displayName(person) {
-  return person.salutation && person.salutation.trim() ? person.salutation.trim() : person.firstName;
+  const sal = person.salutation?.trim();
+  if (!sal) return person.firstName;
+  const first = person.firstName?.trim();
+  if (!first) return sal;
+  const alreadyNamed = sal.toLowerCase().split(/[\s.,]+/).includes(first.toLowerCase());
+  return alreadyNamed ? sal : `${sal} ${first}`;
 }

@@ -56,7 +56,7 @@ a Send is real. So:
 
 ```bash
 npm install
-npm test        # 312 tests over the pure selection/pacing/DB/schedule logic
+npm test        # 313 tests over the pure selection/pacing/DB/schedule logic
 npm run dev      # Vite dev server + Electron, with hot reload
 ```
 
@@ -79,7 +79,7 @@ src/core/          Pure, unit-tested engine: selection, pacing, messages, DB
                     schema/queries, WhatsApp client lifecycle. No Electron
                     dependency -- testable in plain Node/Vitest.
 src/ui/            React renderer (Vite): the wizard + dashboard screens
-test/              312 Vitest tests covering src/core/
+test/              313 Vitest tests covering src/core/
 config/            messages.yaml: default message templates, seeded into the
                     DB on first run only (never overwrites user edits)
 build/             Installer icon + tray icon (placeholders -- see below)
