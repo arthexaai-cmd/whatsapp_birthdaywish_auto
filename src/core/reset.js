@@ -18,6 +18,9 @@ export const RESET_TARGETS = [
   "birthday-bot.sqlite-shm",
   "wa-session",
   "wwebjs-cache",
+  // The diagnostic log (electron/logFile.js) can name contacts, e.g. a failed send.
+  "main.log",
+  "main.old.log",
 ];
 
 /**

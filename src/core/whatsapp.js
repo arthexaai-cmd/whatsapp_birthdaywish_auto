@@ -56,7 +56,25 @@ export async function createClient({
     puppeteer: {
       headless: true,
       executablePath,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        // Edge (seen on 154, Windows) can relaunch itself through its "compat
+        // layer": the process Puppeteer started exits with code 0 within
+        // ~100 ms and a second, identical browser keeps running. Puppeteer only
+        // watches the first one, so it reports "Failed to launch the browser
+        // process: Code: 0" -- and the orphaned real browser keeps the profile
+        // locked, so every later attempt fails with "browser is already
+        // running" until the PC is restarted. This is the switch Edge adds to
+        // its own relaunch; passing it up front prevents the relaunch. Chrome
+        // ignores it.
+        "--edge-skip-compat-layer-relaunch",
+      ],
+      // Puppeteer's default is 30 s. The first start of Edge on a new or slow
+      // PC (or with antivirus scanning it) can take longer, and on Windows a
+      // launch timeout surfaces as the misleading "browser is already
+      // running" (see browserLock.js).
+      timeout: 90_000,
     },
   });
 

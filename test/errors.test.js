@@ -45,6 +45,8 @@ describe("friendlyError", () => {
     ["Protocol error (Runtime.callFunctionOn): Target closed", /interrupted/i],
     ["Execution context was destroyed", /interrupted/i],
     ["browser is already running for /tmp/x", /still shutting down/i],
+    ["browser_launch_failed: the browser could not start", /didn't start in time/i],
+    ["browser_profile_in_use: another browser window is still using the WhatsApp profile", /Restart the computer/i],
     ["No installed browser (Edge/Chrome) was found", /Edge or Google Chrome/],
     ["runEngine: a connected waClient is required for a real run.", /isn't connected/],
     ["A run is already in progress.", /already in progress/],

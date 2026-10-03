@@ -20,6 +20,7 @@ import { Updater } from "./updater.js";
 import { installVirtualClock, startTestControlServer, installFakeWhatsappIfRequested } from "./testHarness.js";
 import { runManager } from "./runManager.js";
 import { whatsappManager } from "./whatsappManager.js";
+import { installLogFile } from "./logFile.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.ELECTRON_DEV === "true";
@@ -57,6 +58,8 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
+  // Only the instance that owns the data folder writes its log.
+  installLogFile(app.getPath("userData"));
   app.on("second-instance", () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();

@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { findOrphanBrowserPids } from "../src/core/browserLock.js";
 
 const WIN_CANDIDATES = [
   // Edge
@@ -124,4 +125,40 @@ export function findFallbackChromium(userDataPath) {
     return null;
   }
   return null;
+}
+
+/**
+ * Close browsers still running on the app's WhatsApp profile (see
+ * findOrphanBrowserPids in src/core/browserLock.js for which ones qualify).
+ * Such a browser holds the profile's lockfile, and until it exits every
+ * connect fails with "browser is already running" -- before this, only a PC
+ * restart got the user out. Windows only; best-effort, never throws.
+ * Callers must only use this when the app itself has no live client.
+ * @returns {Promise<number[]>} pids that were killed
+ */
+export async function killOrphanBrowsers(profileDir) {
+  if (process.platform !== "win32") return [];
+  try {
+    const { execFile } = await import("node:child_process");
+    const script =
+      "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe' OR Name='chrome.exe'\" | " +
+      "Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress";
+    const out = await new Promise((resolve, reject) =>
+      execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { timeout: 15_000, windowsHide: true },
+        (err, stdout) => (err ? reject(err) : resolve(stdout)))
+    );
+    if (!out.trim()) return [];
+    const parsed = JSON.parse(out);
+    const processes = (Array.isArray(parsed) ? parsed : [parsed]).map((p) => ({ pid: p.ProcessId, commandLine: p.CommandLine }));
+    const pids = findOrphanBrowserPids(processes, profileDir);
+    for (const pid of pids) {
+      try {
+        process.kill(pid);
+      } catch {}
+    }
+    return pids;
+  } catch (err) {
+    console.error("[browser] could not look for leftover browsers:", err);
+    return [];
+  }
 }

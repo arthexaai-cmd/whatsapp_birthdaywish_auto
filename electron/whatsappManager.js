@@ -8,8 +8,14 @@ import fs from "node:fs";
 import QRCode from "qrcode";
 import { createClient } from "../src/core/whatsapp.js";
 import { isClientAlive } from "../src/core/clientHealth.js";
-import { findSystemBrowser, findFallbackChromium, downloadFallbackChromium } from "./browser.js";
+import { browserProfileDir, clearStaleBrowserLock } from "../src/core/browserLock.js";
+import { findSystemBrowser, findFallbackChromium, downloadFallbackChromium, killOrphanBrowsers } from "./browser.js";
 import { sessionDir, webVersionCacheDir } from "./db.js";
+
+// Puppeteer's ways of saying the browser didn't start: "The browser is
+// already running for <profile>" (often wrong on Windows, see
+// browserLock.js) and "Failed to launch the browser process".
+const LAUNCH_FAILURE = /already running|Failed to launch the browser process/i;
 
 class WhatsappManager extends EventEmitter {
   constructor() {
@@ -108,6 +114,11 @@ class WhatsappManager extends EventEmitter {
     let clearedAfterLogout = false;
     let retriedLaunch = false;
     for (;;) {
+      // A lockfile left by a browser that died mid-start makes Puppeteer
+      // report every launch failure as "already running" (browserLock.js).
+      if (clearStaleBrowserLock(browserProfileDir(sessionDir())) === "cleared") {
+        console.warn("[whatsapp] removed a stale browser lockfile left by an earlier attempt");
+      }
       try {
         const client = await this._createClient(browser, qrTimeoutMs, signal);
         this.client = client;
@@ -134,19 +145,47 @@ class WhatsappManager extends EventEmitter {
           this._setState({ status: "connecting", error: null, qrDataUrl: null });
           continue;
         }
-        if (/already running/i.test(err.message) && !retriedLaunch) {
-          // An old browser for this profile is still exiting. Give it a
-          // moment and try once more before giving up.
-          console.warn("[whatsapp] previous browser still running; retrying shortly");
+        const launchFailed = LAUNCH_FAILURE.test(err.message);
+        if (launchFailed && !retriedLaunch) {
+          // Either an old browser for this profile is still exiting, or one
+          // was orphaned (Edge relaunching itself left a running browser that
+          // Puppeteer lost track of -- see whatsapp.js). This manager has no
+          // live client at this point, so any browser on our profile is a
+          // leftover: close it, then try once more. Before this, only a PC
+          // restart cleared it.
+          console.warn("[whatsapp] browser launch failed; closing leftover browsers and retrying:", err.message);
           retriedLaunch = true;
-          await new Promise((r) => setTimeout(r, 4000));
+          const killed = await killOrphanBrowsers(browserProfileDir(sessionDir()));
+          if (killed.length) console.warn(`[whatsapp] closed leftover browser process(es): ${killed.join(", ")}`);
+          await new Promise((r) => setTimeout(r, killed.length ? 2000 : 4000));
           continue;
         }
+        if (launchFailed) err = this._explainLaunchFailure(err);
         console.error("[whatsapp] connect failed:", err);
         this._setState({ status: "error", error: err.message, qrDataUrl: null });
         throw err;
       }
     }
+  }
+
+  /**
+   * The retry also failed to launch. Find out whether "already running" is
+   * true: if the profile's lockfile can be deleted, no browser holds it, so
+   * the browser actually failed to start (timed out, crashed, or was blocked)
+   * and Puppeteer mislabelled it. The full original error is in main.log.
+   */
+  _explainLaunchFailure(err) {
+    const lock = clearStaleBrowserLock(browserProfileDir(sessionDir()));
+    if (lock === "in_use") {
+      const e = new Error("browser_profile_in_use: another browser window is still using the WhatsApp profile");
+      e.cause = err;
+      return e;
+    }
+    // Don't embed err.message: it says "already running", which is exactly the
+    // wrong explanation (and would match that rule in src/ui/errors.js).
+    const e = new Error("browser_launch_failed: the browser could not start");
+    e.cause = err;
+    return e;
   }
 
   _createClient(browser, qrTimeoutMs, signal) {

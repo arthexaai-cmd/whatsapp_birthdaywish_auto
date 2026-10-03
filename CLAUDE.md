@@ -16,7 +16,7 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 290 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm test          # vitest run -- 312 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
 npm run dev       # Vite (localhost:5173, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```
@@ -61,8 +61,15 @@ a test, not in `electron/`.
   - `importGuard.js` — Excel import IPC guard: only the dialog-picked path may be read, and confirm refuses if the file changed since the preview.
   - `updatePolicy.js` — `canInstallNow()` (refuses an update install during a run, or within 30 min of an Automatic-mode send), `reduceUpdateState()` (the update state machine the UI renders), `shouldCheckNow()`. `electron/updater.js` wraps `electron-updater` (packaged app only; `autoDownload`/`autoInstallOnAppQuit` off; nothing installs without a click); `electron/ipc/updates.js` + `window.api.updates`; UI in `UpdateBanner.jsx` / `UpdatesCard.jsx`. Releases are built by `.github/workflows/release.yml` on a `v*.*.*` tag (see `docs/RELEASING.md`). The feed override `BIRTHDAY_BOT_UPDATE_URL` only works together with `BIRTHDAY_BOT_USER_DATA` (test mode).
   - `reset.js` — `wipeAppData(userDataPath)` for factory reset. Deletes the
-    DB (+ WAL/SHM), `wa-session/` and `wwebjs-cache/`; keeps the `chromium/`
-    download cache.
+    DB (+ WAL/SHM), `wa-session/`, `wwebjs-cache/` and `main.log`; keeps the
+    `chromium/` download cache.
+  - `browserLock.js` — `clearStaleBrowserLock()`: removes the WhatsApp browser
+    profile's leftover `lockfile`. On Windows Puppeteer reports *any* launch
+    failure (even a timeout) as "browser is already running" while that file
+    exists; deleting it only succeeds when no live browser holds it. The
+    root cause seen in the field was Edge relaunching itself (exit code 0,
+    orphaned browser); `whatsapp.js` passes `--edge-skip-compat-layer-relaunch`
+    to prevent it -- don't remove that switch.
   - `pacing.js` (batches, jitter, quiet hours, daily cap, warm-up ramp),
     `messages.js` (template rendering, random emoji), `roster.js` + `xlsx.js`
     (Excel import/validation, downloadable blank template), `clock.js` (clock
@@ -97,7 +104,10 @@ a test, not in `electron/`.
     local session. `logOutAndUnlink()` first tries a real logout, capped at
     10 s, so the phone's Linked devices list is cleaned up too.
   - `browser.js` (finds system Edge/Chrome/Chromium; one-time Chromium
-    download fallback), `clockCheck.js` (drift via HTTPS `Date` header),
+    download fallback), `logFile.js` (mirrors stdout/stderr into
+    `<userData>/main.log`;
+    the first place to look when connecting fails on someone else's PC),
+    `clockCheck.js` (drift via HTTPS `Date` header),
     `tray.js` (mode-aware "Next reminder"/"Next send" label; its "Send
     today's birthdays…" item only opens the review screen).
   - `ipc/*.js` — one file per channel group, registered in `ipc/index.js`
