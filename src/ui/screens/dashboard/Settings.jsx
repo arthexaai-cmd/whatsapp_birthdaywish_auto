@@ -9,6 +9,9 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
   const [selfNotifyNumber, setSelfNotifyNumber] = useState(settings?.selfNotifyNumber || "");
   const [selfNotifyEnabled, setSelfNotifyEnabled] = useState(settings?.selfNotifyEnabled ?? true);
   const [defaultCountry, setDefaultCountry] = useState(settings?.defaultCountry || "IN");
+  const [postfixEnabled, setPostfixEnabled] = useState(settings?.namePostfixEnabled ?? true);
+  const [postfix, setPostfix] = useState(settings?.namePostfix ?? "ji");
+  const [postfixStatus, setPostfixStatus] = useState(null);
   const [unlinking, setUnlinking] = useState(false);
   const [sampleStatus, setSampleStatus] = useState(null);
 
@@ -21,6 +24,18 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
     await window.api.settings.set("selfNotifyEnabled", selfNotifyEnabled);
     await window.api.settings.set("defaultCountry", defaultCountry);
     onSettingsChange();
+  };
+
+  const savePostfix = async () => {
+    setPostfixStatus(null);
+    try {
+      await window.api.settings.set("namePostfixEnabled", postfixEnabled);
+      await window.api.settings.set("namePostfix", postfix);
+      onSettingsChange();
+      setPostfixStatus("Saved");
+    } catch (err) {
+      setPostfixStatus(`Could not save: ${friendlyError(err)}`);
+    }
   };
 
   const saveSample = async () => {
@@ -89,6 +104,36 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
         <button className="primary" onClick={saveNotify} style={{ alignSelf: "flex-start" }}>
           Save
         </button>
+      </div>
+
+      <div className="card stack">
+        <h3>Name style</h3>
+        <label className="row" style={{ cursor: "pointer" }}>
+          <input type="checkbox" checked={postfixEnabled} onChange={(e) => setPostfixEnabled(e.target.checked)} />
+          <span style={{ color: "var(--text)" }}>Add a postfix after the name</span>
+        </label>
+        <div>
+          <label>Postfix</label>
+          <input
+            type="text"
+            value={postfix}
+            maxLength={20}
+            disabled={!postfixEnabled}
+            onChange={(e) => setPostfix(e.target.value)}
+            style={{ width: 120 }}
+            placeholder="ji"
+          />
+        </div>
+        <p className="muted" style={{ fontSize: 12 }}>
+          Example: Happy birthday Abhijit{postfixEnabled && postfix.trim() ? ` ${postfix.trim()}` : ""}! Not added for contacts that have a
+          salutation (Mr, Dr…).
+        </p>
+        <div className="row">
+          <button className="primary" onClick={savePostfix}>
+            Save
+          </button>
+          {postfixStatus && <span className="muted">{postfixStatus}</span>}
+        </div>
       </div>
 
       <div className="card stack">

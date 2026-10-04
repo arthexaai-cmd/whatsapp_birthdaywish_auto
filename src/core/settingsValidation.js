@@ -63,6 +63,9 @@ const VALIDATORS = {
   leapDayFallback: (v) => (v === "feb28" || v === "mar1" ? v : fail('leap-day rule must be "feb28" or "mar1".')),
   defaultCountry: (v) => (typeof v === "string" && /^[A-Z]{2}$/.test(v) ? v : fail("default country must be a 2-letter code like IN.")),
   selfNotifyNumber: (v) => (typeof v === "string" && v.length <= 32 ? v.trim() : fail("the self-notify number is too long.")),
+  namePostfixEnabled: (v) => (isBool(v) ? v : fail("namePostfixEnabled must be true or false.")),
+  namePostfix: (v) =>
+    typeof v === "string" && v.trim().length <= 20 && !/[\r\n]/.test(v) ? v.trim() : fail("the name postfix must be a single line of at most 20 characters."),
   pacing: validatePacing,
 };
 

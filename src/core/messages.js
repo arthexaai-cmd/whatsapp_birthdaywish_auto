@@ -23,18 +23,19 @@ function expandVars(template, vars, rng) {
  * @param {boolean} belated
  * @param {object} messagesConfig  parsed config/messages.yaml
  * @param {Function} [rng] injectable for deterministic tests
+ * @param {string} [postfix] appended after the first name ("ji"); see namePostfixFrom
  */
-export function renderMessage(person, belated, messagesConfig, rng = Math.random) {
+export function renderMessage(person, belated, messagesConfig, rng = Math.random, postfix = "") {
   if (person.customMessage && person.customMessage.trim()) {
     // Custom messages are used verbatim (with {name} substitution only),
     // since the person explicitly authored them.
-    return person.customMessage.replace(/\{name\}/g, displayName(person));
+    return person.customMessage.replace(/\{name\}/g, displayName(person, postfix));
   }
 
   const pool = belated ? messagesConfig.belated : messagesConfig.onTime;
   const template = pick(pool, rng);
   let text = expandVars(template, messagesConfig.vars, rng);
-  text = text.replace(/\{name\}/g, displayName(person));
+  text = text.replace(/\{name\}/g, displayName(person, postfix));
 
   const emojiPool = messagesConfig.emoji;
   if (emojiPool && emojiPool.length > 0 && rng() < 0.6 && !/\p{Emoji}/u.test(text.slice(-2))) {
@@ -49,11 +50,20 @@ export function renderMessage(person, belated, messagesConfig, rng = Math.random
 // for the common Excel layout of a short title column. A salutation that already
 // contains the first name (e.g. "Dr. Sharma") is a full form of address and is
 // used as is, so it isn't doubled up.
-function displayName(person) {
+//
+// The postfix ("ji") only goes after a bare first name: with a salutation the
+// address is already respectful and "Mr Abhijit ji" would read doubled.
+function displayName(person, postfix = "") {
   const sal = person.salutation?.trim();
-  if (!sal) return person.firstName;
+  if (!sal) return postfix && person.firstName ? `${person.firstName} ${postfix}` : person.firstName;
   const first = person.firstName?.trim();
   if (!first) return sal;
   const alreadyNamed = sal.toLowerCase().split(/[\s.,]+/).includes(first.toLowerCase());
   return alreadyNamed ? sal : `${sal} ${first}`;
+}
+
+/** The postfix to use for these settings: "" when the feature is off or blank. */
+export function namePostfixFrom(settings) {
+  if (!settings || settings.namePostfixEnabled === false) return "";
+  return typeof settings.namePostfix === "string" ? settings.namePostfix.trim() : "";
 }

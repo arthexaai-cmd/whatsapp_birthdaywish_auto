@@ -63,6 +63,11 @@ export const DEFAULT_SETTINGS = {
   selfNotifyEnabled: true,
   selfNotifyNumber: "",
 
+  // Respectful suffix after the first name ("Abhijit ji"). Skipped for
+  // contacts that have a salutation, so it never reads "Mr Abhijit ji".
+  namePostfixEnabled: true,
+  namePostfix: "ji",
+
   // Set true the first time WhatsApp pairing ever succeeds. Lets the app
   // treat a later disconnect (session expired, phone unlinked it) as a
   // reconnect prompt on the Settings screen rather than dropping the user

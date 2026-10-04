@@ -2,8 +2,8 @@
 // pool editing, and live sample rendering for the Messages screen.
 
 import { ipcMain } from "electron";
-import { listTemplates, addTemplate, setTemplateEnabled, deleteTemplate, getMessagesConfig } from "../../src/core/db.js";
-import { renderMessage } from "../../src/core/messages.js";
+import { listTemplates, addTemplate, setTemplateEnabled, deleteTemplate, getMessagesConfig, getAllSettings } from "../../src/core/db.js";
+import { renderMessage, namePostfixFrom } from "../../src/core/messages.js";
 
 export function registerMessagesIpc(db) {
   ipcMain.handle("messages:listTemplates", () => listTemplates(db));
@@ -22,11 +22,12 @@ export function registerMessagesIpc(db) {
 
   ipcMain.handle("messages:preview", (event, { count = 8 } = {}) => {
     const cfg = getMessagesConfig(db);
+    const postfix = namePostfixFrom(getAllSettings(db));
     const samplePerson = { firstName: "Alex", salutation: null, customMessage: null };
     const samples = [];
     for (let i = 0; i < count; i++) {
       const belated = i % 3 === 0;
-      samples.push({ belated, text: renderMessage(samplePerson, belated, cfg) });
+      samples.push({ belated, text: renderMessage(samplePerson, belated, cfg, Math.random, postfix) });
     }
     return samples;
   });

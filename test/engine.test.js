@@ -224,7 +224,7 @@ describe("manual review — previewToday + approved", () => {
     const before = previewToday({ db, settings, dateOverride: "2026-03-14" });
     expect(before.due).toHaveLength(1);
     expect(before.due[0]).toMatchObject({ name: "Test Person", belated: false });
-    expect(before.due[0].text).toMatch(/^Happy birthday Test!/); // a random emoji may follow
+    expect(before.due[0].text).toMatch(/^Happy birthday Test ji!/); // a random emoji may follow
     expect(before.alreadySentToday).toHaveLength(0);
 
     await runEngine({ db, settings, dateOverride: "2026-03-14", waClient: fakeClient() });

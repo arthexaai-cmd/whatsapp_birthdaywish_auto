@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { renderMessage } from "../src/core/messages.js";
+import { renderMessage, namePostfixFrom } from "../src/core/messages.js";
+import { DEFAULT_SETTINGS } from "../src/core/defaults.js";
 
 const messagesConfig = {
   onTime: ["Happy birthday {name}! {wish}"],
@@ -45,6 +46,34 @@ describe("renderMessage", () => {
     const text = renderMessage(person({ salutation: "Dr. Priya" }), false, messagesConfig, () => 0);
     expect(text).toContain("Dr. Priya");
     expect(text).not.toContain("Priya Priya");
+  });
+
+  it("appends the postfix after a bare first name", () => {
+    const text = renderMessage(person({}), false, messagesConfig, () => 0.9, "ji");
+    expect(text).toBe("Happy birthday Priya ji! Have a great day.");
+  });
+
+  it("adds no postfix when it is empty", () => {
+    const text = renderMessage(person({}), false, messagesConfig, () => 0.9, "");
+    expect(text).toBe("Happy birthday Priya! Have a great day.");
+  });
+
+  it("skips the postfix when the contact has a salutation", () => {
+    const text = renderMessage(person({ salutation: "Mr" }), false, messagesConfig, () => 0.9, "ji");
+    expect(text).toContain("Mr Priya!");
+    expect(text).not.toContain("ji");
+  });
+
+  it("applies the postfix to {name} in a custom message", () => {
+    const p = person({ customMessage: "Yo {name}, happy bday!!" });
+    expect(renderMessage(p, false, messagesConfig, () => 0, "ji")).toBe("Yo Priya ji, happy bday!!");
+  });
+
+  it("namePostfixFrom honours the toggle and defaults", () => {
+    expect(namePostfixFrom({ namePostfixEnabled: true, namePostfix: " ji " })).toBe("ji");
+    expect(namePostfixFrom({ namePostfixEnabled: false, namePostfix: "ji" })).toBe("");
+    expect(namePostfixFrom({ namePostfixEnabled: true, namePostfix: "" })).toBe("");
+    expect(namePostfixFrom(DEFAULT_SETTINGS)).toBe("ji");
   });
 
   it("uses a custom message verbatim, substituting only {name}", () => {

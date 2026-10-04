@@ -12,7 +12,7 @@
 // cleanly mid-batch without losing the record of what already sent.
 
 import { matchBirthdays, dedupeAgainstLedger, todayInTz } from "./birthdays.js";
-import { renderMessage } from "./messages.js";
+import { renderMessage, namePostfixFrom } from "./messages.js";
 import { batchMatches, buildSchedule, effectiveDailyCap, isQuietNow } from "./pacing.js";
 import { resolveWhatsappId, sendWithTyping } from "./whatsapp.js";
 import { buildSummary } from "./report.js";
@@ -81,7 +81,7 @@ export function previewToday({ db, settings, dateOverride = null, ignoreLedger =
     phone: m.person.phoneE164,
     belated: m.belated,
     occurrence: ymdKey(m.occurrence),
-    text: renderMessage(m.person, m.belated, messagesConfig),
+    text: renderMessage(m.person, m.belated, messagesConfig, Math.random, namePostfixFrom(settings)),
   }));
 
   // Already handled today: today's matches that the ledger marks terminal.
@@ -154,7 +154,7 @@ export async function runEngine({
   onProgress({ phase: "matched", matchCount: matches.length });
   // Reviewed text (manual mode) wins over a fresh random render.
   const textFor = (person, belated, ledgerKey) =>
-    approved && typeof approved[ledgerKey] === "string" ? approved[ledgerKey] : renderMessage(person, belated, messagesConfig);
+    approved && typeof approved[ledgerKey] === "string" ? approved[ledgerKey] : renderMessage(person, belated, messagesConfig, Math.random, namePostfixFrom(settings));
 
   if (matches.length === 0) {
     return { scheduled: [], deferred: [], results: [], summary: null, cap: 0, droppedByCap: 0 };

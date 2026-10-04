@@ -26,9 +26,19 @@ describe("validateSetting — keys (S2)", () => {
     for (const k of [
       "sendMode", "reminderEnabled", "schedulingPaused", "scheduledTime", "timezone", "catchupDays",
       "catchUpOnLaunch", "runAtLogin", "pacing", "selfNotifyNumber", "selfNotifyEnabled", "defaultCountry", "riskAcknowledged",
+      "namePostfixEnabled", "namePostfix",
     ]) {
       expect(RENDERER_SETTABLE_KEYS).toContain(k);
     }
+  });
+  it("name postfix", () => {
+    expect(validateSetting("namePostfixEnabled", false)).toBe(false);
+    expect(() => validateSetting("namePostfixEnabled", "yes")).toThrow(/true or false/);
+    expect(validateSetting("namePostfix", " ji ")).toBe("ji");
+    expect(validateSetting("namePostfix", "")).toBe("");
+    expect(() => validateSetting("namePostfix", "a\nb")).toThrow(/single line/);
+    expect(() => validateSetting("namePostfix", "x".repeat(21))).toThrow(/at most 20/);
+    expect(() => validateSetting("namePostfix", 5)).toThrow(/single line/);
   });
 });
 
