@@ -101,3 +101,29 @@ describe("updateCheckEnabled setting", () => {
     expect(() => validateSetting("updateCheckEnabled", "no")).toThrow();
   });
 });
+
+describe("newer release found while an older one is pending", () => {
+  const run = (events, start = INITIAL_UPDATE_STATE) => events.reduce((s, e) => reduceUpdateState(s, e), start);
+
+  it("a re-check during a download switches to the newest version without leaving 'downloading'", () => {
+    const s = run([
+      { type: "available", version: "2.1.5" },
+      { type: "download-started" },
+      { type: "checking" },
+      { type: "available", version: "2.1.7", releaseNotes: "notes" },
+    ]);
+    expect(s.status).toBe("downloading");
+    expect(s.version).toBe("2.1.7");
+    expect(s.releaseNotes).toBe("notes");
+    expect(run([{ type: "downloaded", version: "2.1.7" }], s)).toMatchObject({ status: "ready", version: "2.1.7" });
+  });
+
+  it("a newer release replaces an already-downloaded older one, so Install never installs a stale version", () => {
+    const s = run([
+      { type: "available", version: "2.1.6" },
+      { type: "downloaded", version: "2.1.6" },
+      { type: "available", version: "2.1.7" },
+    ]);
+    expect(s).toMatchObject({ status: "available", version: "2.1.7" });
+  });
+});

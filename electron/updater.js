@@ -106,11 +106,20 @@ export class Updater extends EventEmitter {
     return this.state;
   }
 
-  /** Download the version found by check(). Still does not install. */
+  /**
+   * Download the newest release. Still does not install.
+   *
+   * electron-updater downloads whatever the *last* check found. If the app
+   * has been open for a while and more releases were published since, that
+   * is an out-of-date version and the user would have to download and install
+   * again for each one. So look again right before downloading; the "available"
+   * event updates the version shown, and the download then fetches the latest.
+   */
   async download() {
     if (!this.autoUpdater || this.state.status !== "available") return this.state;
     this._dispatch({ type: "download-started" });
     try {
+      await this.autoUpdater.checkForUpdates();
       await this.autoUpdater.downloadUpdate();
     } catch (err) {
       this._dispatch({ type: "error", message: err?.message ?? String(err) });

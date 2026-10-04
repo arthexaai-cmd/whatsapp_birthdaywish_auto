@@ -67,6 +67,11 @@ export function reduceUpdateState(state, event, now = new Date()) {
       return { ...state, status: "checking", error: null };
     case "available":
       if (state.status === "ready" && state.version === event.version) return state;
+      // download() re-checks first so it fetches the newest release; that
+      // re-check must not bounce a running download back to "available".
+      if (state.status === "downloading") {
+        return { ...state, version: event.version, releaseNotes: event.releaseNotes ?? null };
+      }
       return {
         ...state,
         status: "available",
