@@ -27,7 +27,7 @@ function describeWaProblem(error) {
   return `WhatsApp isn't connected, so birthday messages can't be sent until you reconnect${detail}.`;
 }
 
-export default function Home({ settings, waState, onReopenWizard }) {
+export default function Home({ settings, waState, onReopenWizard, onSettingsChange }) {
   const [running, setRunning] = useState(false);
   const [events, setEvents] = useState([]);
   const [lastResult, setLastResult] = useState(null);
@@ -48,9 +48,25 @@ export default function Home({ settings, waState, onReopenWizard }) {
   const loadPreviewRef = useRef(loadPreview);
   loadPreviewRef.current = loadPreview;
 
+  // `settings` is a dependency so the review list re-renders its messages as
+  // soon as any setting changes (e.g. the name postfix), not only on mount.
   useEffect(() => {
     loadPreview();
-  }, [loadPreview]);
+  }, [loadPreview, settings]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshAll = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      await onSettingsChange?.();
+      await window.api.run.previewToday({ ignoreLedger }).then(setPreview);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     const off = window.api.run.onProgress((event) => {
@@ -152,6 +168,9 @@ export default function Home({ settings, waState, onReopenWizard }) {
             </p>
           </div>
           <div className="row">
+            <button onClick={refreshAll} disabled={running || refreshing} title="Reload settings, today's birthdays and their messages">
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
             {running ? (
               <button className="danger" onClick={cancel}>
                 Stop

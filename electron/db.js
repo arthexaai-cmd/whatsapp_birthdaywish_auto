@@ -8,7 +8,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { app } from "electron";
 import YAML from "yaml";
-import { migrate, seedDefaultsIfEmpty, getAllSettings, setSetting } from "../src/core/db.js";
+import { migrate, seedDefaultsIfEmpty, getAllSettings, setSetting, migrateTemplateTextsToCurrentDefaults } from "../src/core/db.js";
 import { DEFAULT_SETTINGS, fillMissingDefaults, migratePacingToCurrentDefaults } from "../src/core/defaults.js";
 
 let dbInstance = null;
@@ -47,6 +47,14 @@ export function openDb() {
   if (existing.pacing && existing.pacingDefaultsVersion == null) {
     existing.pacing = migratePacingToCurrentDefaults(existing.pacing);
     setSetting(db, "pacing", existing.pacing);
+  }
+
+  // Same one-time move, but for default *template text*: offer the new
+  // multi-line wording only to rows the user never edited.
+  if (existing.templateDefaultsVersion == null) {
+    migrateTemplateTextsToCurrentDefaults(db, messagesConfig);
+    setSetting(db, "templateDefaultsVersion", DEFAULT_SETTINGS.templateDefaultsVersion);
+    existing.templateDefaultsVersion = DEFAULT_SETTINGS.templateDefaultsVersion;
   }
 
   const merged = fillMissingDefaults(existing, DEFAULT_SETTINGS);

@@ -10,6 +10,14 @@ import {
   deleteContact,
   importRosterRows,
   getMessagesConfig,
+  addTemplate,
+  updateTemplateText,
+  listTemplates,
+  addTemplateVar,
+  updateTemplateVar,
+  deleteTemplateVar,
+  listTemplateVars,
+  migrateTemplateTextsToCurrentDefaults,
   startRun,
   endRun,
   recordSend,
@@ -74,6 +82,59 @@ describe("seedDefaultsIfEmpty", () => {
     expect(seedDefaultsIfEmpty(db, sampleMessages)).toBe(false);
     expect(getMessagesConfig(db).onTime).toContain("Custom!");
     expect(getMessagesConfig(db).onTime).toHaveLength(2);
+  });
+});
+
+describe("templates", () => {
+  it("adds, edits (including multi-line text) and lists templates", () => {
+    const db = freshDb();
+    const id = addTemplate(db, "onTime", "Happy birthday {name}!");
+    updateTemplateText(db, id, "Happy birthday {name}!\nHope it's a great one.");
+    const t = listTemplates(db).find((row) => row.id === id);
+    expect(t.text).toBe("Happy birthday {name}!\nHope it's a great one.");
+    expect(getMessagesConfig(db).onTime).toContain("Happy birthday {name}!\nHope it's a great one.");
+  });
+});
+
+describe("template vars (the {wish} pool)", () => {
+  it("adds, edits and deletes a wish-pool line", () => {
+    const db = freshDb();
+    const id = addTemplateVar(db, "wish", "Have a great year ahead.");
+    expect(listTemplateVars(db)).toEqual([{ id, name: "wish", value: "Have a great year ahead." }]);
+
+    updateTemplateVar(db, id, "Edited wish.");
+    expect(listTemplateVars(db)[0].value).toBe("Edited wish.");
+    expect(getMessagesConfig(db).vars.wish).toEqual(["Edited wish."]);
+
+    deleteTemplateVar(db, id);
+    expect(listTemplateVars(db)).toEqual([]);
+  });
+});
+
+describe("migrateTemplateTextsToCurrentDefaults", () => {
+  const newConfig = {
+    onTime: ["{name},\n\nHappy birthday!\n\n{wish}"],
+    belated: ["{name},\n\nbelated happy birthday!\n\n{wish}"],
+  };
+
+  it("replaces a row still at the old default, leaves an edited row alone", () => {
+    const db = freshDb();
+    const untouchedId = addTemplate(db, "onTime", "Happy birthday {name}! {wish} 🎂");
+    const editedId = addTemplate(db, "belated", "My own belated wording {name}!");
+
+    migrateTemplateTextsToCurrentDefaults(db, newConfig);
+
+    const byId = Object.fromEntries(listTemplates(db).map((t) => [t.id, t.text]));
+    expect(byId[untouchedId]).toBe("{name},\n\nHappy birthday!\n\n{wish}");
+    expect(byId[editedId]).toBe("My own belated wording {name}!");
+  });
+
+  it("is a no-op when run twice", () => {
+    const db = freshDb();
+    const id = addTemplate(db, "onTime", "Happy birthday {name}! {wish} 🎂");
+    migrateTemplateTextsToCurrentDefaults(db, newConfig);
+    migrateTemplateTextsToCurrentDefaults(db, newConfig);
+    expect(listTemplates(db).find((t) => t.id === id).text).toBe("{name},\n\nHappy birthday!\n\n{wish}");
   });
 });
 

@@ -51,15 +51,19 @@ export function renderMessage(person, belated, messagesConfig, rng = Math.random
 // contains the first name (e.g. "Dr. Sharma") is a full form of address and is
 // used as is, so it isn't doubled up.
 //
-// The postfix ("ji") only goes after a bare first name: with a salutation the
-// address is already respectful and "Mr Abhijit ji" would read doubled.
+// The postfix ("ji") is appended after whatever name the above produces,
+// salutation or not -- e.g. "Mr Abhijit ji".
 function displayName(person, postfix = "") {
   const sal = person.salutation?.trim();
-  if (!sal) return postfix && person.firstName ? `${person.firstName} ${postfix}` : person.firstName;
+  if (!sal) return withPostfix(person.firstName, postfix);
   const first = person.firstName?.trim();
-  if (!first) return sal;
+  if (!first) return withPostfix(sal, postfix);
   const alreadyNamed = sal.toLowerCase().split(/[\s.,]+/).includes(first.toLowerCase());
-  return alreadyNamed ? sal : `${sal} ${first}`;
+  return withPostfix(alreadyNamed ? sal : `${sal} ${first}`, postfix);
+}
+
+function withPostfix(name, postfix) {
+  return postfix && name ? `${name} ${postfix}` : name;
 }
 
 /** The postfix to use for these settings: "" when the feature is off or blank. */

@@ -9,6 +9,7 @@
 // distributable app where end users never run a build step.
 
 import { normalizeRoster } from "./roster.js";
+import { OLD_TEMPLATE_DEFAULTS_V0 } from "./defaults.js";
 
 const SCHEMA_VERSION = 1;
 
@@ -290,6 +291,10 @@ export function addTemplate(db, kind, text) {
   return info.lastInsertRowid;
 }
 
+export function updateTemplateText(db, id, text) {
+  db.prepare("UPDATE templates SET text = ? WHERE id = ?").run(text, id);
+}
+
 export function setTemplateEnabled(db, id, enabled) {
   db.prepare("UPDATE templates SET enabled = ? WHERE id = ?").run(enabled ? 1 : 0, id);
 }
@@ -300,6 +305,44 @@ export function deleteTemplate(db, id) {
 
 export function listTemplates(db) {
   return db.prepare("SELECT * FROM templates ORDER BY kind, id").all();
+}
+
+export function addTemplateVar(db, name, value) {
+  const info = db.prepare("INSERT INTO template_vars (name, value) VALUES (?, ?)").run(name, value);
+  return info.lastInsertRowid;
+}
+
+export function updateTemplateVar(db, id, value) {
+  db.prepare("UPDATE template_vars SET value = ? WHERE id = ?").run(value, id);
+}
+
+export function deleteTemplateVar(db, id) {
+  db.prepare("DELETE FROM template_vars WHERE id = ?").run(id);
+}
+
+export function listTemplateVars(db) {
+  return db.prepare("SELECT * FROM template_vars ORDER BY name, id").all();
+}
+
+/**
+ * One-time move of an existing install's *unedited* default templates to
+ * the current default wording, by exact-text match against
+ * OLD_TEMPLATE_DEFAULTS_V0 -- mirrors migratePacingToCurrentDefaults's
+ * "only touch what the user never changed" rule. `newMessagesConfig` is the
+ * parsed config/messages.yaml (same shape: { onTime: [...], belated: [...] }).
+ */
+export function migrateTemplateTextsToCurrentDefaults(db, newMessagesConfig) {
+  for (const kind of ["onTime", "belated"]) {
+    const oldTexts = OLD_TEMPLATE_DEFAULTS_V0[kind] || [];
+    const newTexts = newMessagesConfig?.[kind] || [];
+    const rows = db.prepare("SELECT id, text FROM templates WHERE kind = ?").all(kind);
+    for (const row of rows) {
+      const idx = oldTexts.indexOf(row.text);
+      if (idx !== -1 && newTexts[idx] && newTexts[idx] !== row.text) {
+        db.prepare("UPDATE templates SET text = ? WHERE id = ?").run(newTexts[idx], row.id);
+      }
+    }
+  }
 }
 
 // ---- Runs & sends (ledger) ----------------------------------------------

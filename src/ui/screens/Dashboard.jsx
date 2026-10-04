@@ -42,9 +42,11 @@ export default function Dashboard({ settings, waState, onSettingsChange, onReope
       </div>
       <div className="main-content">
         <UpdateBanner />
-        {tab === "home" && <Home settings={settings} waState={waState} onReopenWizard={onReopenWizard} />}
+        {tab === "home" && (
+          <Home settings={settings} waState={waState} onReopenWizard={onReopenWizard} onSettingsChange={onSettingsChange} />
+        )}
         {tab === "contacts" && <Contacts />}
-        {tab === "messages" && <Messages />}
+        {tab === "messages" && <Messages settings={settings} />}
         {tab === "schedule" && <Schedule settings={settings} onSettingsChange={onSettingsChange} />}
         {tab === "history" && <History />}
         {tab === "reports" && <Reports />}

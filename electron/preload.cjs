@@ -27,8 +27,13 @@ contextBridge.exposeInMainWorld("api", {
   messages: {
     listTemplates: () => ipcRenderer.invoke("messages:listTemplates"),
     addTemplate: (kind, text) => ipcRenderer.invoke("messages:addTemplate", { kind, text }),
+    updateTemplate: (id, text) => ipcRenderer.invoke("messages:updateTemplate", { id, text }),
     setTemplateEnabled: (id, enabled) => ipcRenderer.invoke("messages:setTemplateEnabled", { id, enabled }),
     deleteTemplate: (id) => ipcRenderer.invoke("messages:deleteTemplate", id),
+    listVars: () => ipcRenderer.invoke("messages:listVars"),
+    addVar: (name, value) => ipcRenderer.invoke("messages:addVar", { name, value }),
+    updateVar: (id, value) => ipcRenderer.invoke("messages:updateVar", { id, value }),
+    deleteVar: (id) => ipcRenderer.invoke("messages:deleteVar", id),
     preview: (count) => ipcRenderer.invoke("messages:preview", { count }),
   },
   settings: {

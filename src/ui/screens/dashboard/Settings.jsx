@@ -125,8 +125,7 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
           />
         </div>
         <p className="muted" style={{ fontSize: 12 }}>
-          Example: Happy birthday Abhijit{postfixEnabled && postfix.trim() ? ` ${postfix.trim()}` : ""}! Not added for contacts that have a
-          salutation (Mr, Dr…).
+          Example: Happy birthday Abhijit{postfixEnabled && postfix.trim() ? ` ${postfix.trim()}` : ""}!
         </p>
         <div className="row">
           <button className="primary" onClick={savePostfix}>

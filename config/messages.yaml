@@ -5,17 +5,17 @@
 # A trailing emoji is appended ~60% of the time from `emoji`.
 
 onTime:
-  - "Happy birthday {name}! {wish} 🎂"
-  - "Hey {name}, happy birthday! {wish}"
-  - "{name}, wishing you a very happy birthday! {wish}"
-  - "Happy birthday {name}!! {wish}"
-  - "Many happy returns of the day, {name}! {wish}"
-  - "{name}, happy birthday to you! {wish}"
+  - "{name},\n\nHappy birthday!\n\n{wish}"
+  - "{name},\n\nHey, happy birthday!\n\n{wish}"
+  - "{name},\n\nwishing you a very happy birthday!\n\n{wish}"
+  - "{name},\n\nHappy birthday!!\n\n{wish}"
+  - "{name},\n\nmany happy returns of the day!\n\n{wish}"
+  - "{name},\n\nhappy birthday to you!\n\n{wish}"
 
 belated:
-  - "Belated happy birthday {name}! {wish}"
-  - "{name}, sorry this is a day late — happy birthday! {wish}"
-  - "Just realised I missed it — happy (belated) birthday {name}! {wish}"
+  - "{name},\n\nbelated happy birthday!\n\n{wish}"
+  - "{name},\n\nsorry this is a day late — happy birthday!\n\n{wish}"
+  - "{name},\n\njust realised I missed it — happy (belated) birthday!\n\n{wish}"
 
 vars:
   wish:

@@ -58,10 +58,14 @@ describe("renderMessage", () => {
     expect(text).toBe("Happy birthday Priya! Have a great day.");
   });
 
-  it("skips the postfix when the contact has a salutation", () => {
+  it("appends the postfix after a salutation + first name too", () => {
     const text = renderMessage(person({ salutation: "Mr" }), false, messagesConfig, () => 0.9, "ji");
-    expect(text).toContain("Mr Priya!");
-    expect(text).not.toContain("ji");
+    expect(text).toContain("Mr Priya ji!");
+  });
+
+  it("appends the postfix after a salutation that already contains the first name", () => {
+    const text = renderMessage(person({ salutation: "Dr. Priya" }), false, messagesConfig, () => 0.9, "ji");
+    expect(text).toContain("Dr. Priya ji!");
   });
 
   it("applies the postfix to {name} in a custom message", () => {

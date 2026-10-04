@@ -8,6 +8,13 @@
 // only (not in settingsValidation's allowlist).
 export const PACING_DEFAULTS_VERSION = 1;
 
+// Bumped when the *default template text* changes in a way existing
+// installs should be offered (an install only gets the replacement for a
+// template row whose text still exactly matches the old default -- see
+// OLD_TEMPLATE_DEFAULTS_V0 below and migrateTemplateTextsToCurrentDefaults
+// in db.js). Main-process only (not in settingsValidation's allowlist).
+export const TEMPLATE_DEFAULTS_VERSION = 1;
+
 export const DEFAULT_SETTINGS = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
 
@@ -80,6 +87,11 @@ export const DEFAULT_SETTINGS = {
   // Which generation of pacing defaults this install has been moved to.
   pacingDefaultsVersion: PACING_DEFAULTS_VERSION,
 
+  // Which generation of default *template text* this install has been
+  // offered. Main-process only (not in settingsValidation's allowlist) --
+  // see migrateTemplateTextsToCurrentDefaults in db.js.
+  templateDefaultsVersion: TEMPLATE_DEFAULTS_VERSION,
+
   // UI-enforced ceiling so a user can't naively crank dailyCap to something
   // that reads as bulk spam to WhatsApp.
   dailyCapMax: 150,
@@ -94,6 +106,28 @@ const OLD_PACING_DEFAULTS_V0 = {
   betweenBatchMinutes: [14, 28],
   dailyCap: 60,
   warmupDays: 7,
+};
+
+// The single-line default templates shipped up to 2.1.9, keyed by kind, in
+// the same order as their 2.1.10+ multi-line replacements in
+// config/messages.yaml. A row whose text still exactly equals one of these
+// was never edited by the user, so migrateTemplateTextsToCurrentDefaults
+// (db.js) replaces it with the new default at the same position; anything
+// else (a user's own wording) is left alone.
+export const OLD_TEMPLATE_DEFAULTS_V0 = {
+  onTime: [
+    "Happy birthday {name}! {wish} 🎂",
+    "Hey {name}, happy birthday! {wish}",
+    "{name}, wishing you a very happy birthday! {wish}",
+    "Happy birthday {name}!! {wish}",
+    "Many happy returns of the day, {name}! {wish}",
+    "{name}, happy birthday to you! {wish}",
+  ],
+  belated: [
+    "Belated happy birthday {name}! {wish}",
+    "{name}, sorry this is a day late — happy birthday! {wish}",
+    "Just realised I missed it — happy (belated) birthday {name}! {wish}",
+  ],
 };
 
 /**
