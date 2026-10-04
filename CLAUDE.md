@@ -16,7 +16,7 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 315 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm test          # vitest run -- 319 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
 npm run dev       # Vite (localhost:5173, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```
@@ -84,7 +84,7 @@ a test, not in `electron/`.
     - `deleteContact` sets `sends.contact_id` to NULL before deleting (it's a
       foreign key). History keeps its own name/phone copy, and the
       phone-based ledger survives, so a re-added person isn't double-sent.
-  - `defaults.js` — `DEFAULT_SETTINGS` seeded once; `fillMissingDefaults`
+  - `defaults.js` — `DEFAULT_SETTINGS` seeded once; `migratePacingToCurrentDefaults` (run once from `electron/db.js`, gated by `pacingDefaultsVersion`) moves installs still on the old pacing defaults to the new ones, field by field, leaving user-edited fields alone. Bump `PACING_DEFAULTS_VERSION` and extend it if pacing defaults change again. `fillMissingDefaults`
     only adds missing keys, never overwrites user edits. Includes `sendMode`
     (`"manual"` default | `"auto"`) and `reminderEnabled`.
   - `whatsapp.js` — whatsapp-web.js `Client` lifecycle (LocalAuth session,

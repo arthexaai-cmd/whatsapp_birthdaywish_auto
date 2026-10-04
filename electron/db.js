@@ -9,7 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { app } from "electron";
 import YAML from "yaml";
 import { migrate, seedDefaultsIfEmpty, getAllSettings, setSetting } from "../src/core/db.js";
-import { DEFAULT_SETTINGS, fillMissingDefaults } from "../src/core/defaults.js";
+import { DEFAULT_SETTINGS, fillMissingDefaults, migratePacingToCurrentDefaults } from "../src/core/defaults.js";
 
 let dbInstance = null;
 
@@ -40,6 +40,15 @@ export function openDb() {
   // update that introduced a new setting) without touching ones the user
   // already has -- fillMissingDefaults only adds, never overwrites.
   const existing = getAllSettings(db);
+
+  // An install from before pacingDefaultsVersion existed keeps its saved
+  // pacing, which would pin it to the old defaults forever. Move the fields
+  // the user never changed to the current defaults, once.
+  if (existing.pacing && existing.pacingDefaultsVersion == null) {
+    existing.pacing = migratePacingToCurrentDefaults(existing.pacing);
+    setSetting(db, "pacing", existing.pacing);
+  }
+
   const merged = fillMissingDefaults(existing, DEFAULT_SETTINGS);
   for (const [key, value] of Object.entries(merged)) {
     if (!(key in existing)) setSetting(db, key, value);

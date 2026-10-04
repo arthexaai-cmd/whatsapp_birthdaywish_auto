@@ -3,6 +3,11 @@
 // the DB so the UI can read and edit it directly instead of hand-editing YAML.
 // Never re-applied once a key exists -- see electron/db.js's seedSettingsIfMissing.
 
+// Bumped when the pacing defaults change in a way existing installs should
+// follow. Stored in the DB so each install migrates exactly once. Main-process
+// only (not in settingsValidation's allowlist).
+export const PACING_DEFAULTS_VERSION = 1;
+
 export const DEFAULT_SETTINGS = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
 
@@ -67,10 +72,37 @@ export const DEFAULT_SETTINGS = {
   // Consent screen must be accepted before any real (non-dry-run) send.
   riskAcknowledged: false,
 
+  // Which generation of pacing defaults this install has been moved to.
+  pacingDefaultsVersion: PACING_DEFAULTS_VERSION,
+
   // UI-enforced ceiling so a user can't naively crank dailyCap to something
   // that reads as bulk spam to WhatsApp.
   dailyCapMax: 150,
 };
+
+// The pacing defaults shipped up to 2.1.5. A saved value that still equals
+// one of these was never changed by the user, so it follows the new default;
+// a value the user edited is left alone.
+const OLD_PACING_DEFAULTS_V0 = {
+  startJitterMinutes: [0, 20],
+  withinBatchSeconds: [40, 150],
+  betweenBatchMinutes: [14, 28],
+  dailyCap: 60,
+  warmupDays: 7,
+};
+
+/**
+ * One-time move of an existing install's pacing to the current defaults,
+ * field by field, only for fields still at their old default.
+ * @returns {object} the pacing object to store (a new object; input untouched)
+ */
+export function migratePacingToCurrentDefaults(pacing, defaults = DEFAULT_SETTINGS.pacing) {
+  const out = { ...pacing };
+  for (const [key, oldValue] of Object.entries(OLD_PACING_DEFAULTS_V0)) {
+    if (JSON.stringify(pacing?.[key]) === JSON.stringify(oldValue)) out[key] = defaults[key];
+  }
+  return out;
+}
 
 /** Deep-ish merge: only fills in keys missing from `existing`, recursing one level for objects. */
 export function fillMissingDefaults(existing, defaults) {
