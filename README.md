@@ -56,7 +56,7 @@ a Send is real. So:
 
 ```bash
 npm install
-npm test        # 313 tests over the pure selection/pacing/DB/schedule logic
+npm test        # 315 tests over the pure selection/pacing/DB/schedule logic
 npm run dev      # Vite dev server + Electron, with hot reload
 ```
 
@@ -79,7 +79,7 @@ src/core/          Pure, unit-tested engine: selection, pacing, messages, DB
                     schema/queries, WhatsApp client lifecycle. No Electron
                     dependency -- testable in plain Node/Vitest.
 src/ui/            React renderer (Vite): the wizard + dashboard screens
-test/              313 Vitest tests covering src/core/
+test/              315 Vitest tests covering src/core/
 config/            messages.yaml: default message templates, seeded into the
                     DB on first run only (never overwrites user edits)
 build/             Installer icon + tray icon (placeholders -- see below)
@@ -150,8 +150,9 @@ app:
   day's sends aren't byte-identical.
 - Sends in randomized batches with jittered delays and a simulated typing
   pause, never inside a configurable quiet-hours window.
-- Enforces a daily cap (with a hard UI ceiling) and ramps a freshly-paired
-  number up gradually rather than sending at full volume from day one.
+- Enforces a daily cap (default 100, with a hard UI ceiling of 150), spread
+  over most of the day. An optional warm-up (Schedule tab) can ramp a
+  freshly-paired number up gradually; it is off by default.
 - Aborts the whole run after a couple of consecutive send failures, rather
   than hammering a degraded session.
 

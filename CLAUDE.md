@@ -16,7 +16,7 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 313 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm test          # vitest run -- 315 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
 npm run dev       # Vite (localhost:5173, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```

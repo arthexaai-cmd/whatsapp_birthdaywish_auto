@@ -32,17 +32,21 @@ export const DEFAULT_SETTINGS = {
   pacing: {
     // Small enough to still defeat exact-second pattern matching (the actual
     // anti-detection goal) without wasting a large chunk of the day as pure
-    // dead time before anything starts -- at a modest volume (a few dozen
-    // sends/day), betweenBatchMinutes below already spreads the run across
-    // a couple of hours on its own.
-    startJitterMinutes: [0, 20],
+    // dead time before anything starts. The gaps below are tuned so a full
+    // day at the default cap of 100 averages about 4 hours (about
+    // 18 batches x ~7 min + ~60 s per message, plus a few seconds of typing
+    // per message), starting at 09:15 and ending mid-afternoon, well before
+    // quiet hours at 21:30.
+    startJitterMinutes: [0, 10],
     batchSize: [4, 7],
-    withinBatchSeconds: [40, 150],
-    betweenBatchMinutes: [14, 28],
+    withinBatchSeconds: [30, 90],
+    betweenBatchMinutes: [5, 9],
     typingMsPerChar: [45, 90],
-    dailyCap: 60,
+    dailyCap: 100,
     quietHours: ["21:30", "08:30"],
-    warmupDays: 7,
+    // No warm-up by default: the full cap applies from the first day.
+    // warmupStartCap only matters if the user sets warmupDays above 0.
+    warmupDays: 0,
     warmupStartCap: 8,
   },
 

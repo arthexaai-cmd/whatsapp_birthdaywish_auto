@@ -6,30 +6,59 @@ import { effectiveDailyCap, batchMatches, buildSchedule } from "../src/core/paci
 import { DEFAULT_SETTINGS } from "../src/core/defaults.js";
 
 const P = DEFAULT_SETTINGS.pacing;
+// Warm-up is opt-in now (default warmupDays 0), so ramp tests set it explicitly.
+const W = { ...P, dailyCap: 60, warmupDays: 7, warmupStartCap: 8 };
 const items = (n) => Array.from({ length: n }, (_, i) => ({ id: i }));
 
 describe("effectiveDailyCap warm-up", () => {
+  it("defaults to the full cap of 100 from day 0, no warm-up", () => {
+    expect(P.dailyCap).toBe(100);
+    expect(P.warmupDays).toBe(0);
+    expect(effectiveDailyCap(P, 0)).toBe(100);
+  });
   it("starts at warmupStartCap on day 0, ramps, then reaches dailyCap", () => {
-    expect(effectiveDailyCap(P, 0)).toBe(8);
-    const mid = effectiveDailyCap(P, 3);
+    expect(effectiveDailyCap(W, 0)).toBe(8);
+    const mid = effectiveDailyCap(W, 3);
     expect(mid).toBeGreaterThan(8);
     expect(mid).toBeLessThan(60);
-    expect(effectiveDailyCap(P, 7)).toBe(60);
-    expect(effectiveDailyCap(P, 400)).toBe(60);
+    expect(effectiveDailyCap(W, 7)).toBe(60);
+    expect(effectiveDailyCap(W, 400)).toBe(60);
   });
   it("is monotonic non-decreasing across warm-up", () => {
     let prev = 0;
     for (let d = 0; d <= 8; d++) {
-      const c = effectiveDailyCap(P, d);
+      const c = effectiveDailyCap(W, d);
       expect(c).toBeGreaterThanOrEqual(prev);
       prev = c;
     }
   });
 });
 
+describe("default pacing duration", () => {
+  it("spreads a full default day (100 messages) over about 4 hours", () => {
+    // 09:15 IST start. Typing time (~5 s per message) is not part of the
+    // schedule, so the average lands a few minutes under 4h of wall time.
+    const start = new Date("2026-10-05T03:45:00Z");
+    let total = 0;
+    const runs = 20;
+    for (let run = 0; run < runs; run++) {
+      const { batches } = batchMatches(items(100), P, 0);
+      const { scheduled, deferred } = buildSchedule(batches, P, start, "Asia/Kolkata");
+      expect(deferred).toHaveLength(0);
+      expect(scheduled).toHaveLength(100);
+      const minutes = (scheduled.at(-1).sendAt - start) / 60_000;
+      expect(minutes).toBeLessThan(280);
+      total += minutes;
+    }
+    const avg = total / runs;
+    expect(avg).toBeGreaterThan(200);
+    expect(avg).toBeLessThan(250);
+  });
+});
+
 describe("batchMatches", () => {
   it("caps and reports dropped", () => {
-    const { batches, cap, droppedByCap } = batchMatches(items(12), P, 0);
+    const { batches, cap, droppedByCap } = batchMatches(items(12), W, 0);
     expect(cap).toBe(8);
     expect(batches.flat()).toHaveLength(8);
     expect(droppedByCap).toBe(4);

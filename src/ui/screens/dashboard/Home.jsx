@@ -221,7 +221,7 @@ export default function Home({ settings, waState, onReopenWizard }) {
           <label className="row" style={{ cursor: "pointer", fontSize: 12 }}>
             <input type="checkbox" checked={ignoreLedger} onChange={(e) => setIgnoreLedger(e.target.checked)} />
             <span className="muted">
-              Ignore send history (testing only) — resend to people already messaged today instead of skipping them
+              Ignore send history (testing only) — also lists people you already messaged today, so they get a duplicate message
             </span>
           </label>
         )}
