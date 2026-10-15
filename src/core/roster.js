@@ -14,8 +14,13 @@ import { parsePhoneNumberFromString } from "libphonenumber-js";
  * @property {number|null} birthYear
  * @property {string|null} customMessage
  * @property {string|null} salutation
+ * @property {string|null} email    address for the email channel, as typed (trimmed)
  * @property {number} rowNum        1-based row number in the source, for error reporting
  */
+
+import { isValidEmail } from "./emailAddress.js";
+
+export { isValidEmail };
 
 const TRUTHY = new Set(["1", "true", "yes", "y", "skip"]);
 
@@ -115,6 +120,7 @@ export function normalizeRow(row, idx, rowNum, defaultCountry) {
   const skip = cell(row, idx, "skip");
   const customMessage = cell(row, idx, "custom_message") ?? null;
   const salutation = cell(row, idx, "salutation") ?? null;
+  const email = cell(row, idx, "email") ?? null;
 
   if (skip && TRUTHY.has(skip.toLowerCase())) {
     return { skipped: true, rowNum, reason: "marked skip" };
@@ -136,6 +142,12 @@ export function normalizeRow(row, idx, rowNum, defaultCountry) {
     return { error: { rowNum, reason: `invalid birthdate "${birthdateRaw}"`, name } };
   }
 
+  // A typo'd address would send a wish to the wrong inbox (or bounce), so a
+  // bad one is reported on its row like a bad phone is, rather than dropped.
+  if (email && !isValidEmail(email)) {
+    return { error: { rowNum, reason: `invalid email "${email}"`, name } };
+  }
+
   const person = {
     name,
     firstName: name.split(/\s+/)[0],
@@ -145,6 +157,7 @@ export function normalizeRow(row, idx, rowNum, defaultCountry) {
     birthYear: bd.year,
     customMessage,
     salutation,
+    email,
     rowNum,
   };
   return { person };
@@ -209,9 +222,15 @@ export function validateContactInput(c) {
     if (typeof v !== "string" || v.length > max) throw new Error(`Invalid contact: ${label} is too long.`);
     return v;
   };
+  let email = null;
+  if (c.email !== null && c.email !== undefined && String(c.email).trim() !== "") {
+    email = String(c.email).trim();
+    if (!isValidEmail(email)) throw new Error("Invalid contact: that email address doesn't look right.");
+  }
   return {
     ...c,
     name,
+    email,
     birthMonth: month,
     birthDay: day,
     birthYear: year,

@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-birthday-bot",
   "productName": "Birthday Bot",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "description": "Standalone desktop app: sends birthday wishes over WhatsApp Web on a schedule, with human-like pacing.",
@@ -13,17 +13,19 @@
   "scripts": {
     "dev:ui": "vite",
     "dev": "concurrently -k \"npm:dev:ui\" \"npm:dev:electron\"",
-    "dev:electron": "wait-on tcp:5173 && cross-env ELECTRON_DEV=true electron .",
+    "dev:electron": "wait-on tcp:5190 && cross-env ELECTRON_DEV=true electron .",
     "build:ui": "vite build",
     "build": "npm run build:ui && electron-builder",
     "release": "npm run build:ui && electron-builder --publish always",
     "test": "vitest run"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.11",
     "@puppeteer/browsers": "^3.2.2",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.9",
     "libphonenumber-js": "^1.11.12",
+    "nodemailer": "^10.1.1",
     "puppeteer-core": "^23.6.0",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
@@ -71,6 +73,10 @@
       {
         "from": "build/tray-icon.png",
         "to": "tray-icon.png"
+      },
+      {
+        "from": "assets",
+        "to": "assets"
       }
     ],
     "win": {
@@ -82,6 +88,9 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "include": "build/installer.nsh"
-    }
+    },
+    "asarUnpack": [
+      "node_modules/@napi-rs/**"
+    ]
   }
 }

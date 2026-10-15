@@ -4,7 +4,7 @@ import ClockCard from "../../components/ClockCard.jsx";
 import ResetCard from "../../components/ResetCard.jsx";
 import UpdatesCard from "../../components/UpdatesCard.jsx";
 
-export default function Settings({ settings, waState, onSettingsChange, onReopenWizard }) {
+export default function Settings({ settings, waState, onSettingsChange, onSetupWhatsApp }) {
   const [appInfo, setAppInfo] = useState(null);
   const [selfNotifyNumber, setSelfNotifyNumber] = useState(settings?.selfNotifyNumber || "");
   const [selfNotifyEnabled, setSelfNotifyEnabled] = useState(settings?.selfNotifyEnabled ?? true);
@@ -76,8 +76,8 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
         </p>
         <div className="row">
           {waState?.status !== "ready" ? (
-            <button className="primary" onClick={onReopenWizard}>
-              Reconnect
+            <button className="primary" onClick={onSetupWhatsApp}>
+              {settings?.hasEverPaired ? "Reconnect" : "Set up WhatsApp"}
             </button>
           ) : (
             <button className="danger" onClick={unlink} disabled={unlinking}>
@@ -86,6 +86,20 @@ export default function Settings({ settings, waState, onSettingsChange, onReopen
           )}
         </div>
       </div>
+
+      {settings?.onboardingDismissed && (
+        <div className="card row" style={{ justifyContent: "space-between" }}>
+          <span>The "Get started" checklist on the Dashboard is hidden.</span>
+          <button
+            onClick={async () => {
+              await window.api.settings.set("onboardingDismissed", false);
+              onSettingsChange();
+            }}
+          >
+            Show it again
+          </button>
+        </div>
+      )}
 
       <div className="card stack">
         <h3>Run summary notifications</h3>

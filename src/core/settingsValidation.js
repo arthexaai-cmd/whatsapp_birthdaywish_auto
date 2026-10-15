@@ -46,7 +46,7 @@ function validatePacing(v, { dailyCapMax }) {
 }
 
 // key -> (value, ctx) => cleaned value. Anything not listed is rejected:
-// lastReminderDate, dailyCapMax, hasEverPaired and closeWarningDismissed are
+// lastReminderDate, dailyCapMax, hasEverPaired, closeWarningDismissed, cardConfig and emailAccounts are
 // only ever written by the main process.
 const VALIDATORS = {
   sendMode: (v) => (v === "auto" || v === "manual" ? v : fail('sending mode must be "manual" or "auto".')),
@@ -66,6 +66,10 @@ const VALIDATORS = {
   namePostfixEnabled: (v) => (isBool(v) ? v : fail("namePostfixEnabled must be true or false.")),
   namePostfix: (v) =>
     typeof v === "string" && v.trim().length <= 20 && !/[\r\n]/.test(v) ? v.trim() : fail("the name postfix must be a single line of at most 20 characters."),
+  onboardingDismissed: (v) => (isBool(v) ? v : fail("onboardingDismissed must be true or false.")),
+  emailSubject: (v) =>
+    typeof v === "string" && v.trim().length > 0 && v.length <= 200 && !/[\r\n]/.test(v) ? v.trim() : fail("the email subject must be a single line of at most 200 characters."),
+  messageFormat: (v) => (v === "text" || v === "image" || v === "both" ? v : fail('the message format must be "text", "image" or "both".')),
   pacing: validatePacing,
 };
 

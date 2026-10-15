@@ -9,6 +9,8 @@ import { registerRunIpc } from "./run.js";
 import { registerClockIpc } from "./clock.js";
 import { registerReportsIpc } from "./reports.js";
 import { registerUpdatesIpc } from "./updates.js";
+import { registerCardsIpc } from "./cards.js";
+import { registerEmailIpc } from "./email.js";
 
 export function registerAllIpc({ db, mainWindow, onScheduleChanged, onFactoryReset, updater, getInstallContext }) {
   registerUpdatesIpc(updater, mainWindow, getInstallContext);
@@ -19,4 +21,6 @@ export function registerAllIpc({ db, mainWindow, onScheduleChanged, onFactoryRes
   registerRunIpc(db, mainWindow);
   registerClockIpc();
   registerReportsIpc(db);
+  registerCardsIpc(db);
+  registerEmailIpc(db, mainWindow);
 }

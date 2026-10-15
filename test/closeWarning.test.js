@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { closeDecision } from "../src/core/closeWarning.js";
 
-const base = { sendMode: "manual", reminderEnabled: true, schedulingPaused: false, scheduledTime: "09:15", closeWarningDismissed: false };
+// WhatsApp is set up in these tests, so automatic mode really does send.
+const base = { sendMode: "manual", reminderEnabled: true, schedulingPaused: false, scheduledTime: "09:15", closeWarningDismissed: false, riskAcknowledged: true, hasEverPaired: true };
 const next = new Date("2026-10-01T09:15:00");
 const d = (over, settings = {}) => closeDecision({ runActive: false, nextFireAt: next, via: "quit", ...over, settings: { ...base, ...settings } });
 
@@ -14,6 +15,11 @@ describe("closeDecision — quit", () => {
     expect(r.buttons).toEqual(["Minimize to tray", "Quit anyway"]);
     expect(r.defaultId).toBe(0);
     expect(r.quitButtonIndex).toBe(1);
+  });
+  it("auto mode without WhatsApp set up only has a reminder to lose, not an automatic send", () => {
+    const r = d({}, { sendMode: "auto", hasEverPaired: false });
+    expect(r.message).not.toMatch(/automatic send/);
+    expect(r.message).toMatch(/reminder/);
   });
   it("manual mode with reminder warns about the reminder", () => {
     const r = d({});

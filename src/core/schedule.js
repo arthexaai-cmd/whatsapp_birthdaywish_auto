@@ -4,6 +4,7 @@
 // electron/scheduler.js wraps this with the actual timer/powerMonitor glue.
 
 import { listRuns } from "./db.js";
+import { canSendWhatsapp } from "./onboarding.js";
 
 /** True when Intl accepts this IANA timezone name (a typo would make every date computation throw). */
 export function isValidTimezone(tz) {
@@ -86,14 +87,18 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * What the daily trigger (and the launch-time catch-up) should do:
- * "send" in automatic mode, "remind" in manual mode with reminders on,
- * "none" otherwise. schedulingPaused suppresses both.
+ * "send" in automatic mode (once WhatsApp is set up), "remind" in manual mode
+ * (or automatic mode before WhatsApp is set up) with reminders on, "none"
+ * otherwise. schedulingPaused suppresses both.
  *
  * @returns {"send" | "remind" | "none"}
  */
 export function scheduledAction(settings) {
   if (settings.schedulingPaused) return "none";
-  if (settings.sendMode === "auto") return "send";
+  // Automatic sending needs WhatsApp to be set up (consent + paired once).
+  // Without it the trigger can only remind -- it must never launch a browser
+  // for someone who hasn't chosen WhatsApp (or accepted its risk notice).
+  if (settings.sendMode === "auto" && canSendWhatsapp(settings)) return "send";
   return settings.reminderEnabled === false ? "none" : "remind";
 }
 

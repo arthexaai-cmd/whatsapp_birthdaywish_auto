@@ -32,8 +32,8 @@ computer.
 - **Reports**: everything sent so far and the upcoming per-day schedule,
   exportable to Excel.
 - **Reset everything (Settings)**: deletes all contacts, messages, settings
-  and send history, logs WhatsApp out, and restarts the app at the setup
-  wizard — like a fresh install. You type `RESET` to confirm, and can export
+  and send history, logs WhatsApp out, and restarts the app on the
+  Get started checklist — like a fresh install. You type `RESET` to confirm, and can export
   a report first. It can't be undone.
 
 ## Testing safely
@@ -56,7 +56,7 @@ a Send is real. So:
 
 ```bash
 npm install
-npm test        # 332 tests over the pure selection/pacing/DB/schedule logic
+npm test        # 447 tests over the pure selection/pacing/DB/schedule logic
 npm run dev      # Vite dev server + Electron, with hot reload
 ```
 
@@ -67,7 +67,7 @@ a click, and never while messages are being sent. Releases are built by GitHub
 Actions when you push a version tag (`npm version minor && git push
 --follow-tags`). See [docs/RELEASING.md](docs/RELEASING.md).
 
-`npm run dev` starts the React UI on `localhost:5173` and launches Electron
+`npm run dev` starts the React UI on `localhost:5190` and launches Electron
 pointed at it. Edit anything under `src/ui/` and it hot-reloads; edit
 anything under `electron/` or `src/core/` and restart `npm run dev`.
 
@@ -78,8 +78,8 @@ electron/         Main-process code: window, tray, scheduler, IPC, DB wiring
 src/core/          Pure, unit-tested engine: selection, pacing, messages, DB
                     schema/queries, WhatsApp client lifecycle. No Electron
                     dependency -- testable in plain Node/Vitest.
-src/ui/            React renderer (Vite): the wizard + dashboard screens
-test/              332 Vitest tests covering src/core/
+src/ui/            React renderer (Vite): the dashboard screens + WhatsApp setup dialog
+test/              447 Vitest tests covering src/core/
 config/            messages.yaml: default message templates, seeded into the
                     DB on first run only (never overwrites user edits)
 build/             Installer icon + tray icon (placeholders -- see below)
@@ -139,7 +139,7 @@ Produces a Windows installer under `dist-installer/` via `electron-builder`
 
 This automates WhatsApp Web in a way its Terms of Service prohibit, and
 WhatsApp can restrict or ban a number that does this — the app can reduce
-that risk but never remove it. The first-run wizard requires explicit
+that risk but never remove it. Setting up WhatsApp requires explicit
 acknowledgment of this before any real (non-dry-run) send. Concretely, the
 app:
 

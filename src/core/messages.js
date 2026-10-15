@@ -62,6 +62,25 @@ function displayName(person, postfix = "") {
   return withPostfix(alreadyNamed ? sal : `${sal} ${first}`, postfix);
 }
 
+/**
+ * The text written on the birthday card, exactly as stored (no case tidying).
+ * Defaults to "<salutation> <full name> <postfix>"; the card settings can drop
+ * the salutation, the postfix, or use the first name only.
+ * @param {{name?: string, firstName?: string, salutation?: string}} person
+ * @param {{nameParts?: 'full'|'first', includeSalutation?: boolean, includePostfix?: boolean}} [opts]
+ * @param {string} [postfix] see namePostfixFrom
+ */
+export function cardName(person, { nameParts = "full", includeSalutation = true, includePostfix = true } = {}, postfix = "") {
+  const base = nameParts === "first" ? person.firstName || person.name : person.name || person.firstName;
+  const name = (base ?? "").trim();
+  if (!name) return "";
+  const sal = includeSalutation ? person.salutation?.trim() : "";
+  // "Dr. Sharma" as salutation for "Sharma" is already a full form of address.
+  const alreadyNamed = sal && sal.toLowerCase().split(/[\s.,]+/).includes(name.toLowerCase());
+  const withSal = !sal ? name : alreadyNamed ? sal : `${sal} ${name}`;
+  return includePostfix ? withPostfix(withSal, postfix) : withSal;
+}
+
 function withPostfix(name, postfix) {
   return postfix && name ? `${name} ${postfix}` : name;
 }

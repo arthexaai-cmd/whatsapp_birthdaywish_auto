@@ -75,11 +75,28 @@ export const DEFAULT_SETTINGS = {
   namePostfixEnabled: true,
   namePostfix: "ji",
 
+  // What a birthday message contains: "text" (today's behaviour), "image"
+  // (the birthday card only) or "both" (the card with the wish as its
+  // caption). cardConfig is the card's picture + name-box layout; it is
+  // written only by the Cards screen (electron/ipc/cards.js), see cardLayout.js.
+  messageFormat: "text",
+  cardConfig: null,
+
+  // Birthday emails (see emailEngine.js). emailAccounts holds the sender
+  // accounts WITHOUT passwords (those are encrypted separately in
+  // electron/emailSecret.js); it is written only by electron/ipc/email.js.
+  emailAccounts: [],
+  emailSubject: "Happy Birthday {name}!",
+
   // Set true the first time WhatsApp pairing ever succeeds. Lets the app
   // treat a later disconnect (session expired, phone unlinked it) as a
   // reconnect prompt on the Settings screen rather than dropping the user
   // back into the full first-run wizard.
   hasEverPaired: false,
+
+  // The "Get started" checklist on the dashboard was hidden by the user (or
+  // an existing install that was already set up; see electron/db.js).
+  onboardingDismissed: false,
 
   // Consent screen must be accepted before any real (non-dry-run) send.
   riskAcknowledged: false,

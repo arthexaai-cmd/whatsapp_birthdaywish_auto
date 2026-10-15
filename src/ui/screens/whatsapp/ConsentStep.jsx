@@ -1,14 +1,14 @@
 import React, { useState } from "react";
 
-export default function ConsentStep({ onAccept }) {
+export default function ConsentStep({ onAccept, onCancel }) {
   const [checked, setChecked] = useState(false);
 
   return (
     <div className="stack">
-      <h1>Welcome to Birthday Bot</h1>
+      <h1>Before you connect WhatsApp</h1>
       <p className="muted">
-        This app sends birthday messages automatically through your own WhatsApp account, using WhatsApp Web
-        automation (not WhatsApp's official Business API).
+        Birthday Bot can send birthday messages through your own WhatsApp account, using WhatsApp Web automation
+        (not WhatsApp's official Business API). WhatsApp is optional: email works without it.
       </p>
       <div className="consent-box">
         <strong>Please read before continuing:</strong>
@@ -27,9 +27,12 @@ export default function ConsentStep({ onAccept }) {
         <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
         <span style={{ color: "var(--text)" }}>I understand the risk and want to continue.</span>
       </label>
-      <button className="primary" disabled={!checked} onClick={onAccept}>
-        Continue
-      </button>
+      <div className="row">
+        <button className="primary" disabled={!checked} onClick={onAccept}>
+          Continue
+        </button>
+        {onCancel && <button onClick={onCancel}>Not now</button>}
+      </div>
     </div>
   );
 }

@@ -90,6 +90,7 @@ button.danger {
 input[type="text"],
 input[type="number"],
 input[type="time"],
+input[type="password"],
 select,
 textarea {
   font-family: inherit;

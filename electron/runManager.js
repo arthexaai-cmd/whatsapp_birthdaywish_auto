@@ -7,7 +7,10 @@
 import { EventEmitter } from "node:events";
 import { runEngine, hasPendingMatches } from "../src/core/engine.js";
 import { getAllSettings } from "../src/core/db.js";
+import { assertCanSendWhatsapp } from "../src/core/onboarding.js";
 import { whatsappManager } from "./whatsappManager.js";
+import { makeCardRenderer } from "../src/core/cardRender.js";
+import { cardPaths } from "./cardPaths.js";
 
 class RunManager extends EventEmitter {
   constructor() {
@@ -50,6 +53,12 @@ class RunManager extends EventEmitter {
     try {
       const settings = getAllSettings(db);
 
+      // A real WhatsApp send needs the ban-risk notice accepted and a pairing
+      // done at least once (both happen in the WhatsApp setup panel). This is
+      // the single choke point for the button, the tray, the scheduler and the
+      // launch catch-up. The test harness's fake client is exempt.
+      if (!dryRun && !whatsappManager.client?.isFake) assertCanSendWhatsapp(settings);
+
       // Skip connecting WhatsApp entirely for a real run that would find
       // nothing to send anyway (empty contact list, everyone already sent
       // to today, etc.) -- avoids launching the browser and risking a QR
@@ -73,6 +82,7 @@ class RunManager extends EventEmitter {
         dateOverride,
         ignoreLedger,
         approved,
+        renderCard: settings.messageFormat === "text" ? null : makeCardRenderer({ settings, ...cardPaths(userDataPath) }),
         waClient,
         signal: this.controller.signal,
         applyStartJitter: trigger !== "manual",

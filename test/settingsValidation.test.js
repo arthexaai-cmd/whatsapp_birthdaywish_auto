@@ -91,3 +91,34 @@ describe("validateSetting — pacing (F4)", () => {
     for (const bad of [null, [], "x", 3]) expect(() => validateSetting("pacing", bad)).toThrow();
   });
 });
+
+describe("validateSetting — card settings", () => {
+  it("accepts the three message formats and nothing else", () => {
+    for (const f of ["text", "image", "both"]) expect(validateSetting("messageFormat", f)).toBe(f);
+    expect(() => validateSetting("messageFormat", "video")).toThrow(/text.*image.*both/);
+  });
+  it("keeps cardConfig main-process only (written through the Cards screen's own validator)", () => {
+    expect(RENDERER_SETTABLE_KEYS).not.toContain("cardConfig");
+    expect(() => validateSetting("cardConfig", {})).toThrow(/can't be changed/);
+  });
+});
+
+describe("validateSetting — email settings", () => {
+  it("accepts a one-line subject and rejects empty, long or multi-line ones", () => {
+    expect(validateSetting("emailSubject", "  Happy Birthday {name}! ")).toBe("Happy Birthday {name}!");
+    expect(() => validateSetting("emailSubject", "")).toThrow(/subject/);
+    expect(() => validateSetting("emailSubject", "a\nBcc: x@y.com")).toThrow(/subject/);
+    expect(() => validateSetting("emailSubject", "x".repeat(201))).toThrow(/subject/);
+  });
+  it("keeps the account list main-process only (it is written by the email screen's own IPC)", () => {
+    expect(RENDERER_SETTABLE_KEYS).not.toContain("emailAccounts");
+    expect(() => validateSetting("emailAccounts", [])).toThrow(/can't be changed/);
+  });
+});
+
+describe("validateSetting — onboardingDismissed", () => {
+  it("is a renderer-settable boolean", () => {
+    expect(validateSetting("onboardingDismissed", true)).toBe(true);
+    expect(() => validateSetting("onboardingDismissed", "yes")).toThrow(/true or false/);
+  });
+});

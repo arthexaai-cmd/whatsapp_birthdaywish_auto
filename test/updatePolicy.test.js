@@ -10,7 +10,7 @@ import { validateSetting } from "../src/core/settingsValidation.js";
 import { DEFAULT_SETTINGS } from "../src/core/defaults.js";
 
 const at = (iso) => new Date(iso);
-const auto = { sendMode: "auto", schedulingPaused: false, reminderEnabled: true };
+const auto = { sendMode: "auto", schedulingPaused: false, reminderEnabled: true, riskAcknowledged: true, hasEverPaired: true };
 const manual = { sendMode: "manual", schedulingPaused: false, reminderEnabled: true };
 
 describe("canInstallNow", () => {

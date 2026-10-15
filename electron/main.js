@@ -87,7 +87,7 @@ function createWindow() {
   });
 
   if (isDev) {
-    win.loadURL("http://localhost:5173");
+    win.loadURL("http://localhost:5190");
   } else {
     win.loadFile(path.join(__dirname, "..", "dist-ui", "index.html"));
   }
@@ -102,7 +102,7 @@ function createWindow() {
   // remote site inside a window that has the preload bridge).
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
-    const own = isDev ? url.startsWith("http://localhost:5173") : url.startsWith(pathToFileURL(path.join(__dirname, "..", "dist-ui")).href);
+    const own = isDev ? url.startsWith("http://localhost:5190") : url.startsWith(pathToFileURL(path.join(__dirname, "..", "dist-ui")).href);
     if (!own) event.preventDefault();
   });
 

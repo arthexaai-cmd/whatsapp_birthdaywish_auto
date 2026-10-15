@@ -57,6 +57,14 @@ export function openDb() {
     existing.templateDefaultsVersion = DEFAULT_SETTINGS.templateDefaultsVersion;
   }
 
+  // The first-run wizard is gone; a "Get started" checklist replaces it. An
+  // install that already finished the old wizard (consented and paired) has
+  // nothing left to get started on, so hide the checklist for it, once.
+  if (existing.onboardingDismissed == null && existing.riskAcknowledged && existing.hasEverPaired) {
+    setSetting(db, "onboardingDismissed", true);
+    existing.onboardingDismissed = true;
+  }
+
   const merged = fillMissingDefaults(existing, DEFAULT_SETTINGS);
   for (const [key, value] of Object.entries(merged)) {
     if (!(key in existing)) setSetting(db, key, value);

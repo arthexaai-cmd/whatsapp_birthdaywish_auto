@@ -50,14 +50,20 @@ describe("evaluateSchedulerTick — clock jumps", () => {
   });
 });
 
+const READY = { riskAcknowledged: true, hasEverPaired: true };
+
 describe("scheduledAction — every combination", () => {
   const cases = [
-    [{ sendMode: "auto" }, "send"],
-    [{ sendMode: "auto", reminderEnabled: false }, "send"],
+    [{ sendMode: "auto", ...READY }, "send"],
+    [{ sendMode: "auto", reminderEnabled: false, ...READY }, "send"],
+    [{ sendMode: "auto" }, "remind"], // WhatsApp not set up: never auto-send
+    [{ sendMode: "auto", reminderEnabled: false }, "none"],
+    [{ sendMode: "auto", riskAcknowledged: true }, "remind"], // accepted but never paired
+    [{ sendMode: "auto", hasEverPaired: true }, "remind"], // paired but notice not accepted
     [{ sendMode: "manual" }, "remind"],
     [{ sendMode: "manual", reminderEnabled: true }, "remind"],
     [{ sendMode: "manual", reminderEnabled: false }, "none"],
-    [{ sendMode: "auto", schedulingPaused: true }, "none"],
+    [{ sendMode: "auto", schedulingPaused: true, ...READY }, "none"],
     [{ sendMode: "manual", schedulingPaused: true }, "none"],
     [{}, "remind"], // unknown mode falls back to manual
   ];

@@ -1,8 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { friendlyError } from "../../errors.js";
+import CardThumb from "../../components/CardThumb.jsx";
+import GetStarted from "../../components/GetStarted.jsx";
+import { whatsappSetupState } from "../../../core/onboarding.js";
 import { describeDrift } from "../../../core/clock.js";
 
-function StatusBadge({ waState }) {
+function StatusBadge({ waState, setupState }) {
+  // Never set up is not a problem to flag in red: WhatsApp is optional.
+  if (setupState === "never") {
+    return (
+      <span className="badge">
+        <span className="dot" />
+        WhatsApp not set up
+      </span>
+    );
+  }
   const map = {
     ready: { cls: "ok", label: "WhatsApp connected" },
     connecting: { cls: "warn", label: "Connecting…" },
@@ -27,7 +39,7 @@ function describeWaProblem(error) {
   return `WhatsApp isn't connected, so birthday messages can't be sent until you reconnect${detail}.`;
 }
 
-export default function Home({ settings, waState, onReopenWizard, onSettingsChange }) {
+export default function Home({ settings, waState, onSetupWhatsApp, onNavigate, onSettingsChange }) {
   const [running, setRunning] = useState(false);
   const [events, setEvents] = useState([]);
   const [lastResult, setLastResult] = useState(null);
@@ -99,7 +111,11 @@ export default function Home({ settings, waState, onReopenWizard, onSettingsChan
   }, [events]);
 
   const due = preview?.due ?? [];
+  // Card thumbnails only when a picture is part of the message and one is set up.
+  const format = preview?.messageFormat ?? "text";
+  const showCards = format !== "text" && Boolean(settings?.cardConfig?.image);
   const auto = settings?.sendMode === "auto";
+  const waSetup = whatsappSetupState(settings, waState);
 
   const startRun = async (dryRun) => {
     if (!dryRun) {
@@ -132,13 +148,15 @@ export default function Home({ settings, waState, onReopenWizard, onSettingsChan
     <div className="stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h1>Dashboard</h1>
-        <StatusBadge waState={waState} />
+        <StatusBadge waState={waState} setupState={waSetup} />
       </div>
 
-      {(waState?.status === "disconnected" || waState?.status === "error") && (
+      <GetStarted settings={settings} onSettingsChange={onSettingsChange} onSetupWhatsApp={onSetupWhatsApp} onNavigate={onNavigate} />
+
+      {waSetup === "disconnected" && (waState?.status === "disconnected" || waState?.status === "error") && (
         <div className="card row" style={{ justifyContent: "space-between", borderColor: "var(--danger)" }}>
           <p style={{ margin: 0, fontSize: 13, color: "var(--danger)" }}>{describeWaProblem(waState.error)}</p>
-          <button className="primary" onClick={onReopenWizard}>
+          <button className="primary" onClick={onSetupWhatsApp}>
             Reconnect
           </button>
         </div>
@@ -180,15 +198,21 @@ export default function Home({ settings, waState, onReopenWizard, onSettingsChan
                 <button onClick={() => startRun(true)} disabled={due.length === 0}>
                   Dry run
                 </button>
-                <button
-                  className="primary"
-                  onClick={() => startRun(false)}
-                  disabled={waState?.status !== "ready" || due.length === 0}
-                  title={waState?.status !== "ready" ? "Connect WhatsApp first" : undefined}
-                >
-                  {auto ? "Send now" : "Send all"}
-                  {due.length > 0 ? ` (${due.length})` : ""}
-                </button>
+                {waSetup === "never" ? (
+                  <button className="primary" onClick={onSetupWhatsApp} title="WhatsApp isn't set up yet">
+                    Set up WhatsApp
+                  </button>
+                ) : (
+                  <button
+                    className="primary"
+                    onClick={() => startRun(false)}
+                    disabled={waState?.status !== "ready" || due.length === 0}
+                    title={waState?.status !== "ready" ? "Connect WhatsApp first" : undefined}
+                  >
+                    {auto ? "Send now" : "Send all"}
+                    {due.length > 0 ? ` (${due.length})` : ""}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -205,6 +229,7 @@ export default function Home({ settings, waState, onReopenWizard, onSettingsChan
               <tr>
                 <th>Name</th>
                 <th>Phone</th>
+                {showCards && <th>Card</th>}
                 <th>Message</th>
               </tr>
             </thead>
@@ -220,7 +245,12 @@ export default function Home({ settings, waState, onReopenWizard, onSettingsChan
                     )}
                   </td>
                   <td className="muted">{d.phone}</td>
-                  <td style={{ whiteSpace: "pre-wrap" }}>{d.text}</td>
+                  {showCards && (
+                    <td>
+                      <CardThumb contactId={d.contactId} />
+                    </td>
+                  )}
+                  <td style={{ whiteSpace: "pre-wrap" }}>{format === "image" ? <span className="muted">(picture only, no text)</span> : d.text}</td>
                 </tr>
               ))}
             </tbody>
@@ -317,6 +347,8 @@ function describeEvent(e) {
       return `Sending to ${e.person.name}…`;
     case "sent":
       return `✓ Sent to ${e.person.name}`;
+    case "card_fallback":
+      return `! Couldn't make the birthday card for ${e.person.name} (${e.error}), so the text wish is being sent instead.`;
     case "not_on_whatsapp":
       return `– Skipped ${e.person.name} (not on WhatsApp)`;
     case "send_failed":

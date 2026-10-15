@@ -142,9 +142,10 @@ describe("scheduledAction", () => {
     expect(scheduledAction({ sendMode: "manual", reminderEnabled: false })).toBe("none");
   });
 
-  it("automatic mode sends", () => {
-    expect(scheduledAction({ sendMode: "auto" })).toBe("send");
-    expect(scheduledAction({ sendMode: "auto", reminderEnabled: false })).toBe("send");
+  it("automatic mode sends once WhatsApp is set up", () => {
+    const ready = { riskAcknowledged: true, hasEverPaired: true };
+    expect(scheduledAction({ sendMode: "auto", ...ready })).toBe("send");
+    expect(scheduledAction({ sendMode: "auto", reminderEnabled: false, ...ready })).toBe("send");
   });
 
   it("paused suppresses both sends and reminders", () => {

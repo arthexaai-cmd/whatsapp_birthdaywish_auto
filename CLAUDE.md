@@ -16,8 +16,8 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 332 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
-npm run dev       # Vite (localhost:5173, strictPort) + Electron with ELECTRON_DEV=true
+npm test          # vitest run -- 447 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm run dev       # Vite (localhost:5190, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```
 
@@ -87,6 +87,8 @@ a test, not in `electron/`.
   - `defaults.js` — `DEFAULT_SETTINGS` seeded once; `migratePacingToCurrentDefaults` (run once from `electron/db.js`, gated by `pacingDefaultsVersion`) moves installs still on the old pacing defaults to the new ones, field by field, leaving user-edited fields alone. Bump `PACING_DEFAULTS_VERSION` and extend it if pacing defaults change again. `fillMissingDefaults`
     only adds missing keys, never overwrites user edits. Includes `sendMode`
     (`"manual"` default | `"auto"`) and `reminderEnabled`.
+  - Birthday cards (setting `messageFormat`: `"text"` default | `"image"` | `"both"`; `"both"` = card with the wish as caption). `cardLayout.js` (pure: `CARD_FONTS` -- 20 fonts grouped by `category` -- `clampBox`, `fitText`, `validateCardConfig`, `isValidHexColor`/`contrastStrokeColor` (the colour is a free-form hex string, not a fixed palette id), `normalizeRotationDeg`/`unrotateDelta` (box rotation); also imported by the UI), `cardRender.js` (`renderCard`, `makeCardRenderer`, via `@napi-rs/canvas`; rotates the canvas around the box centre for a tilted name box; the same renderer draws the editor preview, the review thumbnails and the sent image), `cardImage.js` (`importBackground`: validates/shrinks the picked picture into `<userData>/cards/background.jpg`), `messages.js` `cardName` (salutation + name + postfix, exactly as stored). `cardConfig` is a main-process-only setting written by `electron/ipc/cards.js`, never by `settings:set`. `runEngine` takes an injected `renderCard(person)`; if it is missing or throws, that person gets the text wish (`card_fallback` event). Fonts and the starter picture live in `assets/` (shipped via `extraResources`; regenerate the starter with `scripts/gen-starter-card.mjs`). UI: `Cards.jsx` tab, plus `CardThumb` in `Home.jsx`.
+  - Birthday emails (separate channel, own **Email** tab and "Send emails" button; never sent automatically). `emailEngine.js` (`previewEmailsToday`, `runEmailEngine`, `classifyMailError`, `friendlyMailError`; mail transport injected, so tests use a fake), `emailBody.js` (subject + HTML with the card inline via `cid:`), `emailAccounts.js` (sender-account validation, presets, daily-cap maths), `emailAddress.js` (`isValidEmail`, UI-safe). **Every selected sender account emails every due person** (one email per person per account; not load sharing). Own ledger table `email_sends` (key `<senderId>:<email>:<date>`), schema v2 (`contacts.email`; the first ALTER migration in `migrate()`). An auth/quota reply stops only that account for the run. Account details (no passwords) are the main-only setting `emailAccounts`; passwords are encrypted with Electron `safeStorage` in `<userData>/email-secrets.bin` (`electron/emailSecret.js`) and never sent to the renderer; both are removed by factory reset. Glue: `electron/emailManager.js`, `electron/ipc/email.js`, `window.api.email`. Excel import has an optional `email` column.
   - `whatsapp.js` — whatsapp-web.js `Client` lifecycle (LocalAuth session,
     web-version cache), number validation, `sendWithTyping`.
 - `electron/` — main process glue
@@ -117,16 +119,26 @@ a test, not in `electron/`.
     purpose. Adding an IPC channel means updating both `ipc/*.js` and
     `preload.cjs`. `contextIsolation` on, `nodeIntegration` off.
 - `src/ui/` — React 19 renderer (Vite root).
-  - First-run `Wizard`: consent, pair, import, sending mode (the `schedule`
-    step), done.
-  - `Dashboard` tabs: home, contacts, messages, schedule, history, reports,
-    settings.
+  - First run: no wizard and no gate. The app opens on the Dashboard, which
+    shows a dismissible **Get started** checklist (`GetStarted.jsx`: add
+    contacts, set up WhatsApp, set up Email -- all optional, any order).
+    WhatsApp is set up on demand in `WhatsAppSetup.jsx` (a dialog: the
+    ban-risk notice, then `PairStep` with the browser check/Chromium download
+    and QR), opened from the checklist, Home or Settings. Rules live in
+    `src/core/onboarding.js`: `canSendWhatsapp` (notice accepted AND paired
+    once) is enforced by `assertCanSendWhatsapp` in `runManager.start` for every
+    real WhatsApp run, and `scheduledAction` only returns `"send"` in auto mode
+    when it holds (otherwise it reminds). `onboardingDismissed` hides the
+    checklist; `electron/db.js` sets it once for installs that were already
+    set up.
+  - `Dashboard` tabs: home, contacts, messages, cards, email, schedule, history,
+    reports, settings.
     - Home: the "Today's birthdays" review list with Send all / Send now,
       which confirms first and sends `approved`.
     - Schedule: sending mode, reminder, pause, pacing.
     - Reports: progress + upcoming + Export to Excel.
     - Settings: ends with `ResetCard` (type `RESET` to confirm).
-  - Shared components: `SendModeFields` (used by the wizard and the Schedule
+  - Shared components: `SendModeFields` (used by the Schedule
     tab), `ResetCard`, `ClockCard`, `ImportErrors`.
   - The CSP in `src/ui/index.html` has no external `connect-src`; network
     calls belong in the main process. The renderer may import pure
@@ -158,7 +170,7 @@ a test, not in `electron/`.
   and connect with the project's own `puppeteer-core`
   (`puppeteer.connect({ browserURL: "http://127.0.0.1:9222" })`); nav items
   are `.nav-item`. To restart, kill `electron.exe` and the Vite process on
-  :5173. Stopping the `npx` wrapper leaves the children running, and the
+  :5190. Stopping the `npx` wrapper leaves the children running, and the
   single-instance lock then makes a new launch quit immediately.
 - whatsapp-web.js calls into WhatsApp's internal Store break often. Treat
   cosmetic calls (e.g. typing presence via `getChatById`/`sendStateTyping`)

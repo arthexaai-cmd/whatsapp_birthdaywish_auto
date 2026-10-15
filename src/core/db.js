@@ -11,7 +11,7 @@
 import { normalizeRoster } from "./roster.js";
 import { OLD_TEMPLATE_DEFAULTS_V0 } from "./defaults.js";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2; // 2: contacts.email + email_sends
 
 export function migrate(db) {
   db.exec(`
@@ -26,6 +26,7 @@ export function migrate(db) {
       birth_year INTEGER,
       custom_message TEXT,
       salutation TEXT,
+      email TEXT,
       skip INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -72,6 +73,22 @@ export function migrate(db) {
       sent_at TEXT NOT NULL
     );
 
+    -- The email channel keeps its own ledger so WhatsApp history, reports and
+    -- dedupe are untouched. ledger_key is "<email lowercased>:<birthday date>".
+    -- sender is the id of the sending account (see src/core/emailAccounts.js).
+    CREATE TABLE IF NOT EXISTS email_sends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contact_id INTEGER REFERENCES contacts(id),
+      ledger_key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      sender TEXT,
+      occurrence TEXT NOT NULL,
+      status TEXT NOT NULL,
+      error TEXT,
+      sent_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sends_run ON sends(run_id);
     CREATE INDEX IF NOT EXISTS idx_contacts_skip ON contacts(skip);
   `);
@@ -80,7 +97,16 @@ export function migrate(db) {
   if (!row) {
     db.prepare("INSERT INTO schema_meta (version) VALUES (?)").run(SCHEMA_VERSION);
   }
-  // Future migrations: `if (row.version < 2) { ...; db.prepare("UPDATE schema_meta SET version = 2").run(); }`
+
+  // v1 -> v2: an existing contacts table predates the email column. CREATE
+  // TABLE IF NOT EXISTS skips it, and node:sqlite has no ADD COLUMN IF NOT
+  // EXISTS, so look first. (Safe to run on every start.)
+  const hasEmail = db.prepare("PRAGMA table_info(contacts)").all().some((c) => c.name === "email");
+  if (!hasEmail) db.exec("ALTER TABLE contacts ADD COLUMN email TEXT");
+  if (row && row.version < SCHEMA_VERSION) {
+    db.prepare("UPDATE schema_meta SET version = ?").run(SCHEMA_VERSION);
+  }
+  // Future migrations: `if (row.version < 3) { ...; db.prepare("UPDATE schema_meta SET version = 3").run(); }`
 }
 
 /** Seed default templates/vars on first run only (never overwrite user edits). */
@@ -160,7 +186,7 @@ export function upsertContact(db, c) {
   if (existing) {
     db.prepare(
       `UPDATE contacts SET name=?, birth_month=?, birth_day=?, birth_year=?,
-         custom_message=?, salutation=?, skip=?, updated_at=? WHERE id=?`
+         custom_message=?, salutation=?, email=?, skip=?, updated_at=? WHERE id=?`
     ).run(
       c.name,
       c.birthMonth,
@@ -168,6 +194,7 @@ export function upsertContact(db, c) {
       c.birthYear ?? null,
       c.customMessage ?? null,
       c.salutation ?? null,
+      c.email ?? null,
       c.skip ? 1 : 0,
       now,
       existing.id
@@ -177,8 +204,8 @@ export function upsertContact(db, c) {
   const info = db
     .prepare(
       `INSERT INTO contacts
-        (name, phone_e164, birth_month, birth_day, birth_year, custom_message, salutation, skip, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (name, phone_e164, birth_month, birth_day, birth_year, custom_message, salutation, email, skip, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       c.name,
@@ -188,6 +215,7 @@ export function upsertContact(db, c) {
       c.birthYear ?? null,
       c.customMessage ?? null,
       c.salutation ?? null,
+      c.email ?? null,
       c.skip ? 1 : 0,
       now,
       now
@@ -207,6 +235,7 @@ export function deleteContact(db, id) {
   db.exec("BEGIN");
   try {
     db.prepare("UPDATE sends SET contact_id = NULL WHERE contact_id = ?").run(id);
+    db.prepare("UPDATE email_sends SET contact_id = NULL WHERE contact_id = ?").run(id);
     db.prepare("DELETE FROM contacts WHERE id = ?").run(id);
     db.exec("COMMIT");
   } catch (err) {
@@ -228,14 +257,15 @@ export function importRosterRows(db, rows, { defaultCountry = "IN", dryRun = fal
   if (!dryRun) {
     for (const p of people) {
       // A re-import must not undo edits made in the app: keep an existing
-      // contact's skip flag, and keep their custom message / salutation when
-      // the sheet leaves those cells blank.
-      const existing = db.prepare("SELECT skip, custom_message, salutation FROM contacts WHERE phone_e164 = ?").get(p.phoneE164);
+      // contact's skip flag, and keep their custom message / salutation /
+      // email when the sheet leaves those cells blank.
+      const existing = db.prepare("SELECT skip, custom_message, salutation, email FROM contacts WHERE phone_e164 = ?").get(p.phoneE164);
       const result = upsertContact(db, {
         ...p,
         skip: existing ? !!existing.skip : false,
         customMessage: p.customMessage ?? existing?.custom_message ?? null,
         salutation: p.salutation ?? existing?.salutation ?? null,
+        email: p.email ?? existing?.email ?? null,
       });
       if (result.action === "added") added++;
       else updated++;
@@ -264,6 +294,7 @@ function rowToContact(row) {
     birthYear: row.birth_year,
     customMessage: row.custom_message,
     salutation: row.salutation,
+    email: row.email ?? null,
     skip: !!row.skip,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -447,6 +478,42 @@ export function loadTerminalLedgerKeys(db) {
     .prepare("SELECT DISTINCT ledger_key FROM sends WHERE status IN ('sent', 'not_on_whatsapp')")
     .all();
   return new Set(rows.map((r) => r.ledger_key));
+}
+
+// ---- Email ledger -------------------------------------------------------
+
+/**
+ * Record an email outcome. Same rule as recordSend: a row still at 'failed'
+ * is overwritten by a later attempt; a terminal row ('sent') never is.
+ * @returns {{recorded: boolean, reason?: string}}
+ */
+export function recordEmailSend(db, entry) {
+  const info = db
+    .prepare(
+      `INSERT INTO email_sends (contact_id, ledger_key, name, email, sender, occurrence, status, error, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(ledger_key) DO UPDATE SET
+         contact_id = excluded.contact_id, name = excluded.name, email = excluded.email,
+         sender = excluded.sender, status = excluded.status, error = excluded.error,
+         sent_at = excluded.sent_at
+       WHERE email_sends.status = 'failed'`
+    )
+    .run(entry.contactId ?? null, entry.ledgerKey, entry.name, entry.email, entry.sender ?? null, entry.occurrence, entry.status, entry.error ?? null, new Date().toISOString());
+  return info.changes === 0 ? { recorded: false, reason: "duplicate" } : { recorded: true };
+}
+
+/** Email ledger keys already sent: never emailed again. 'failed' stays retryable. */
+export function loadTerminalEmailKeys(db) {
+  return new Set(db.prepare("SELECT ledger_key FROM email_sends WHERE status = 'sent'").all().map((r) => r.ledger_key));
+}
+
+/** Emails sent by one sender account in the last 24 hours (Gmail's quota is a rolling 24 h window). */
+export function countEmailsSentSince(db, sender, sinceIso) {
+  return db.prepare("SELECT COUNT(*) AS n FROM email_sends WHERE sender = ? AND status = 'sent' AND sent_at >= ?").get(sender, sinceIso).n;
+}
+
+export function listEmailSends(db, limit = 200) {
+  return db.prepare("SELECT * FROM email_sends ORDER BY id DESC LIMIT ?").all(limit);
 }
 
 export function countDistinctRunDays(db) {

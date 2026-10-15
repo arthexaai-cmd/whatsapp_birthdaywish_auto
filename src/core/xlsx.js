@@ -30,7 +30,7 @@ export function readXlsxRows(filePath, sheetName) {
 
 // Column order for the downloadable template. Must stay in sync with the
 // headers roster.normalizeRow() looks up.
-export const SAMPLE_HEADERS = ["name", "phone", "birthdate", "salutation", "custom_message", "skip"];
+export const SAMPLE_HEADERS = ["name", "phone", "birthdate", "salutation", "custom_message", "skip", "email"];
 
 const SAMPLE_INSTRUCTIONS = [
   ["How to fill in this file"],
@@ -45,12 +45,13 @@ const SAMPLE_INSTRUCTIONS = [
   ["salutation", "No", "A title placed before their first name, e.g. \"Mr\", \"Dr\", \"Sir\". Leave blank if not needed."],
   ["custom_message", "No", "A personal message that replaces the usual template for this person."],
   ["skip", "No", "Put \"yes\" to never send to this person. Leave blank otherwise."],
+  ["email", "No", "Their email address, if you want to send them a birthday email too. Leave blank otherwise."],
   [],
   ["Examples (do not copy these numbers -- they are not real contacts)"],
   SAMPLE_HEADERS,
-  ["Priya Sharma", "+91 98XXX XXXXX", "14/03/1995", "", "", ""],
-  ["Rahul Verma", "+91 97XXX XXXXX", "29/02", "Sir", "", ""],
-  ["Anita Desai", "+91 96XXX XXXXX", "1988-11-02", "", "Happy birthday Anita! Have a wonderful year.", ""],
+  ["Priya Sharma", "+91 98XXX XXXXX", "14/03/1995", "", "", "", "priya@example.com"],
+  ["Rahul Verma", "+91 97XXX XXXXX", "29/02", "Sir", "", "", ""],
+  ["Anita Desai", "+91 96XXX XXXXX", "1988-11-02", "", "Happy birthday Anita! Have a wonderful year.", "", ""],
 ];
 
 /**
@@ -63,7 +64,7 @@ export function buildSampleWorkbook() {
   const wb = XLSX.utils.book_new();
 
   const contacts = XLSX.utils.aoa_to_sheet([SAMPLE_HEADERS]);
-  contacts["!cols"] = [{ wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 40 }, { wch: 8 }];
+  contacts["!cols"] = [{ wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 40 }, { wch: 8 }, { wch: 28 }];
   XLSX.utils.book_append_sheet(wb, contacts, "Contacts");
 
   const instructions = XLSX.utils.aoa_to_sheet(SAMPLE_INSTRUCTIONS);

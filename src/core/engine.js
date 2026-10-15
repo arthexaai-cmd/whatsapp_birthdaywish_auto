@@ -14,7 +14,7 @@
 import { matchBirthdays, dedupeAgainstLedger, todayInTz } from "./birthdays.js";
 import { renderMessage, namePostfixFrom } from "./messages.js";
 import { batchMatches, buildSchedule, effectiveDailyCap, isQuietNow } from "./pacing.js";
-import { resolveWhatsappId, sendWithTyping } from "./whatsapp.js";
+import { resolveWhatsappId, sendWithTyping, sendCard } from "./whatsapp.js";
 import { buildSummary } from "./report.js";
 import {
   listContacts,
@@ -91,7 +91,7 @@ export function previewToday({ db, settings, dateOverride = null, ignoreLedger =
     .map((m) => ({ ledgerKey: m.ledgerKey, name: m.person.name, phone: m.person.phoneE164 }));
 
   const cap = effectiveDailyCap(settings.pacing, countDistinctRunDays(db));
-  return { today: ymdKey(today), due, cap, overCap: Math.max(0, due.length - cap), alreadySentToday };
+  return { today: ymdKey(today), due, cap, overCap: Math.max(0, due.length - cap), alreadySentToday, messageFormat: settings.messageFormat ?? "text" };
 }
 
 
@@ -129,6 +129,10 @@ function abortableSleep(ms, signal) {
  * @param {Record<string,string>|null} [opts.approved] manual-mode review result from
  *   previewToday: ledgerKey -> exact text. When given, only these people are sent to,
  *   with exactly this text.
+ * @param {((person: object) => Promise<Buffer>)|null} [opts.renderCard] draws the birthday
+ *   card (a JPEG) for one person. Used when settings.messageFormat is "image" or "both".
+ *   If it is missing or throws, that person gets the text wish instead (a birthday is
+ *   never skipped just because the card couldn't be made).
  * @param {(event: object) => void} [opts.onProgress]
  */
 export async function runEngine({
@@ -141,6 +145,7 @@ export async function runEngine({
   signal,
   applyStartJitter = true,
   approved = null,
+  renderCard = null,
   onProgress = () => {},
 }) {
   const runStart = new Date();
@@ -179,6 +184,7 @@ export async function runEngine({
       belated: item.belated,
       sendAt,
       text: textFor(item.person, item.belated, item.ledgerKey),
+      format: settings.messageFormat ?? "text",
     }));
     onProgress({ phase: "dry_run_complete", preview });
     return { scheduled: preview, deferred, results: [], summary: null, cap, droppedByCap };
@@ -233,7 +239,12 @@ export async function runEngine({
         continue;
       }
 
-      await sendOnce(waClient, chatId, text, settings.pacing.typingMsPerChar, settings.retry, signal);
+      const card = await makeCard(person, settings, renderCard, onProgress);
+      const typing = settings.pacing.typingMsPerChar;
+      const send = card
+        ? () => sendCard(waClient, chatId, card, settings.messageFormat === "both" ? text : "", typing)
+        : () => sendWithTyping(waClient, chatId, text, typing);
+      await sendOnce(send, settings.retry, signal);
       recordSend(db, {
         runId,
         contactId: person.id,
@@ -301,15 +312,32 @@ export async function runEngine({
   return { scheduled, deferred, results, summary, cap, droppedByCap, cancelled };
 }
 
-async function sendOnce(waClient, chatId, text, typingRange, retryConfig, signal) {
+/**
+ * The birthday card for this person, or null when the wish should go as plain
+ * text: the format is "text", no card is set up, or drawing it failed.
+ */
+async function makeCard(person, settings, renderCard, onProgress) {
+  const format = settings.messageFormat ?? "text";
+  if (format === "text") return null;
   try {
-    await sendWithTyping(waClient, chatId, text, typingRange);
+    if (!renderCard) throw new Error("no birthday picture is set up");
+    return await renderCard(person);
+  } catch (err) {
+    console.error(`[engine] card for ${person.name} failed, sending text instead:`, err);
+    onProgress({ phase: "card_fallback", person, error: err.message || String(err) });
+    return null;
+  }
+}
+
+async function sendOnce(send, retryConfig, signal) {
+  try {
+    await send();
   } catch (err) {
     if (signal?.aborted) throw err;
     const [lo, hi] = retryConfig.retryBackoffSeconds;
     const backoffMs = (Math.floor(Math.random() * (hi - lo + 1)) + lo) * 1000;
     await abortableSleep(backoffMs, signal);
     if (signal?.aborted) throw err;
-    await sendWithTyping(waClient, chatId, text, typingRange); // a second failure propagates
+    await send(); // a second failure propagates
   }
 }

@@ -8,7 +8,7 @@
 // package) for the renderer to display.
 
 import pkg from "whatsapp-web.js";
-const { Client, LocalAuth } = pkg;
+const { Client, LocalAuth, MessageMedia } = pkg;
 
 /**
  * Create and ready a WhatsApp client using the persisted LocalAuth session
@@ -194,22 +194,40 @@ function randInt([lo, hi]) {
  * like a human composing rather than a script firing instantly.
  */
 export async function sendWithTyping(client, chatId, text, typingMsPerCharRange) {
-  // Best-effort only: the "typing…" presence indicator is a cosmetic
-  // anti-detection touch, not something the actual send depends on. Both
-  // getChatById() and sendStateTyping() go through whatsapp-web.js's
-  // injected page.evaluate() calls into WhatsApp's internal (and
-  // frequently-changing) Store objects -- exactly the kind of call that
-  // breaks first when WhatsApp ships an internal change, well before the
-  // more heavily-used sendMessage()/getNumberId() paths do. A failure here
-  // must never block the real send.
+  await showTyping(client, chatId);
+  const perChar = randInt(typingMsPerCharRange);
+  const delay = Math.min(text.length * perChar, 15_000); // cap so a long message doesn't stall the batch
+  await new Promise((r) => setTimeout(r, delay));
+  return client.sendMessage(chatId, text);
+}
+
+/**
+ * Send the birthday card (a JPEG) with an optional caption. Same typing
+ * simulation as a text message: the pause scales with the caption length, with
+ * a short floor so an image-only card still isn't instantaneous.
+ */
+export async function sendCard(client, chatId, jpeg, caption, typingMsPerCharRange) {
+  await showTyping(client, chatId);
+  const perChar = randInt(typingMsPerCharRange);
+  const delay = Math.min(Math.max((caption?.length ?? 0) * perChar, 1500), 15_000);
+  await new Promise((r) => setTimeout(r, delay));
+  const media = new MessageMedia("image/jpeg", Buffer.from(jpeg).toString("base64"), "birthday-card.jpg");
+  return client.sendMessage(chatId, media, caption ? { caption } : {});
+}
+
+// Best-effort only: the "typing…" presence indicator is a cosmetic
+// anti-detection touch, not something the actual send depends on. Both
+// getChatById() and sendStateTyping() go through whatsapp-web.js's
+// injected page.evaluate() calls into WhatsApp's internal (and
+// frequently-changing) Store objects -- exactly the kind of call that
+// breaks first when WhatsApp ships an internal change, well before the
+// more heavily-used sendMessage()/getNumberId() paths do. A failure here
+// must never block the real send.
+async function showTyping(client, chatId) {
   try {
     const chat = await client.getChatById(chatId);
     await chat.sendStateTyping();
   } catch (err) {
     console.warn(`[whatsapp] typing-presence simulation failed (non-fatal, continuing to send): ${err.message}`);
   }
-  const perChar = randInt(typingMsPerCharRange);
-  const delay = Math.min(text.length * perChar, 15_000); // cap so a long message doesn't stall the batch
-  await new Promise((r) => setTimeout(r, delay));
-  return client.sendMessage(chatId, text);
 }

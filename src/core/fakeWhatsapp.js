@@ -34,11 +34,18 @@ export function createFakeWhatsappClient(config = {}) {
     async getChatById() {
       return { sendStateTyping: async () => {} };
     },
-    async sendMessage(chatId, text) {
+    // content is a string (text) or a MessageMedia-like {mimetype, data} (a
+    // birthday card; options.caption is the wish sent with it).
+    async sendMessage(chatId, content, options = {}) {
       const digits = String(chatId).replace("@c.us", "");
       if (cfg.sendDelayMs) await delay(cfg.sendDelayMs);
       if (cfg.failSend.has(digits)) throw new Error("fake: send failed");
-      sent.push({ chatId, digits, text, at: new Date().toISOString() });
+      const isMedia = content && typeof content === "object";
+      sent.push(
+        isMedia
+          ? { chatId, digits, kind: "image", text: options.caption ?? "", caption: options.caption ?? null, media: { mimetype: content.mimetype, data: content.data }, at: new Date().toISOString() }
+          : { chatId, digits, kind: "text", text: content, at: new Date().toISOString() },
+      );
       return { id: `fake-${sent.length}` };
     },
     // isClientAlive() health check in whatsappManager

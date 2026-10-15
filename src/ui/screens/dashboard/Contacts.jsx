@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { friendlyError } from "../../errors.js";
 import ImportErrors from "../../components/ImportErrors.jsx";
 
-const EMPTY_FORM = { id: null, name: "", phoneE164: "", birthMonth: "", birthDay: "", birthYear: "", customMessage: "", salutation: "", skip: false };
+const EMPTY_FORM = { id: null, name: "", phoneE164: "", birthMonth: "", birthDay: "", birthYear: "", customMessage: "", salutation: "", email: "", skip: false };
 
 export default function Contacts() {
   const [contacts, setContacts] = useState([]);
@@ -18,13 +18,13 @@ export default function Contacts() {
   }, []);
 
   const filtered = contacts.filter(
-    (c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.phoneE164.includes(query)
+    (c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.phoneE164.includes(query) || (c.email ?? "").toLowerCase().includes(query.toLowerCase())
   );
 
   const startEdit = (c) =>
     setForm(
       c
-        ? { ...c, birthMonth: String(c.birthMonth), birthDay: String(c.birthDay), birthYear: c.birthYear ? String(c.birthYear) : "" }
+        ? { ...c, birthMonth: String(c.birthMonth), birthDay: String(c.birthDay), birthYear: c.birthYear ? String(c.birthYear) : "", email: c.email ?? "" }
         : { ...EMPTY_FORM }
     );
 
@@ -40,6 +40,7 @@ export default function Contacts() {
         birthYear: form.birthYear ? Number(form.birthYear) : null,
         customMessage: form.customMessage || null,
         salutation: form.salutation || null,
+        email: form.email.trim() || null,
         skip: !!form.skip,
       });
       setForm(null);
@@ -128,7 +129,7 @@ export default function Contacts() {
         </div>
       )}
 
-      <input type="text" placeholder="Search by name or phone…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input type="text" placeholder="Search by name, phone or email…" value={query} onChange={(e) => setQuery(e.target.value)} />
 
       <div className="card" style={{ padding: 0 }}>
         <table>
@@ -136,6 +137,7 @@ export default function Contacts() {
             <tr>
               <th>Name</th>
               <th>Phone</th>
+              <th>Email</th>
               <th>Birthday</th>
               <th>Custom message</th>
               <th>Skip</th>
@@ -147,6 +149,7 @@ export default function Contacts() {
               <tr key={c.id}>
                 <td>{c.name}</td>
                 <td className="muted">{c.phoneE164}</td>
+                <td className="muted">{c.email || ""}</td>
                 <td className="muted">
                   {String(c.birthDay).padStart(2, "0")}/{String(c.birthMonth).padStart(2, "0")}
                   {c.birthYear ? `/${c.birthYear}` : ""}
@@ -165,7 +168,7 @@ export default function Contacts() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={7} className="muted">
                   No contacts yet.
                 </td>
               </tr>
@@ -187,6 +190,10 @@ export default function Contacts() {
               <label>Phone (any format)</label>
               <input type="text" value={form.phoneE164} onChange={(e) => setForm({ ...form, phoneE164: e.target.value })} style={{ width: "100%" }} />
             </div>
+          </div>
+          <div>
+            <label>Email (optional, for birthday emails)</label>
+            <input type="text" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={{ width: "100%" }} placeholder="name@example.com" />
           </div>
           <div className="row">
             <div>

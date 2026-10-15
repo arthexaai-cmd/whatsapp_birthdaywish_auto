@@ -18,6 +18,10 @@ export const RESET_TARGETS = [
   "birthday-bot.sqlite-shm",
   "wa-session",
   "wwebjs-cache",
+  // The birthday-card picture the user uploaded, and the encrypted email
+  // sender passwords (electron/emailSecret.js).
+  "cards",
+  "email-secrets.bin",
   // The diagnostic log (electron/logFile.js) can name contacts, e.g. a failed send.
   "main.log",
   "main.old.log",
