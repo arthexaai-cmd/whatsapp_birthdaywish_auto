@@ -4,9 +4,11 @@
 // Never re-applied once a key exists -- see electron/db.js's seedSettingsIfMissing.
 
 // Bumped when the pacing defaults change in a way existing installs should
-// follow. Stored in the DB so each install migrates exactly once. Main-process
-// only (not in settingsValidation's allowlist).
-export const PACING_DEFAULTS_VERSION = 1;
+// follow. Stored in the DB so each install migrates exactly once per version
+// bump (electron/db.js re-runs the migration whenever the saved
+// pacingDefaultsVersion is behind this constant). Main-process only (not in
+// settingsValidation's allowlist).
+export const PACING_DEFAULTS_VERSION = 2;
 
 // Bumped when the *default template text* changes in a way existing
 // installs should be offered (an install only gets the replacement for a
@@ -48,14 +50,16 @@ export const DEFAULT_SETTINGS = {
     // day at the default cap of 100 averages about 4 hours (about
     // 18 batches x ~7 min + ~60 s per message, plus a few seconds of typing
     // per message), starting at 09:15 and ending mid-afternoon, well before
-    // quiet hours at 21:30.
+    // quiet hours at midnight.
     startJitterMinutes: [0, 10],
     batchSize: [4, 7],
     withinBatchSeconds: [30, 90],
     betweenBatchMinutes: [5, 9],
     typingMsPerChar: [45, 90],
     dailyCap: 100,
-    quietHours: ["21:30", "08:30"],
+    // Midnight-6am: late enough that evening use of the app isn't treated as
+    // quiet hours, early enough that nothing sends while someone's asleep.
+    quietHours: ["00:00", "06:00"],
     // No warm-up by default: the full cap applies from the first day.
     // warmupStartCap only matters if the user sets warmupDays above 0.
     warmupDays: 0,
@@ -114,15 +118,18 @@ export const DEFAULT_SETTINGS = {
   dailyCapMax: 150,
 };
 
-// The pacing defaults shipped up to 2.1.5. A saved value that still equals
-// one of these was never changed by the user, so it follows the new default;
-// a value the user edited is left alone.
+// The pacing defaults shipped before this version bump. A saved value that
+// still equals one of these was never changed by the user, so it follows the
+// new default; a value the user edited is left alone. Fields from the 2.1.5
+// migration and the 2.3.3 quiet-hours change share this table since the
+// migration is just "does the saved value match some known old default".
 const OLD_PACING_DEFAULTS_V0 = {
   startJitterMinutes: [0, 20],
   withinBatchSeconds: [40, 150],
   betweenBatchMinutes: [14, 28],
   dailyCap: 60,
   warmupDays: 7,
+  quietHours: ["21:30", "08:30"],
 };
 
 // The single-line default templates shipped up to 2.1.9, keyed by kind, in

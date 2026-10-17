@@ -4,6 +4,7 @@ import CardThumb from "../../components/CardThumb.jsx";
 import GetStarted from "../../components/GetStarted.jsx";
 import { whatsappSetupState } from "../../../core/onboarding.js";
 import { describeDrift } from "../../../core/clock.js";
+import { isQuietNow } from "../../../core/pacing.js";
 
 function StatusBadge({ waState, setupState }) {
   // Never set up is not a problem to flag in red: WhatsApp is optional.
@@ -47,7 +48,16 @@ export default function Home({ settings, waState, onSetupWhatsApp, onNavigate, o
   const [ignoreLedger, setIgnoreLedger] = useState(false);
   const [clockDrift, setClockDrift] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [now, setNow] = useState(() => new Date());
   const logRef = useRef(null);
+
+  // Quiet hours is time-sensitive, and someone can leave this screen open
+  // across the boundary (e.g. watching the clock tick past 6am), so refresh
+  // rather than computing it once at mount.
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const loadPreview = useCallback(() => {
     window.api.run
@@ -116,12 +126,17 @@ export default function Home({ settings, waState, onSetupWhatsApp, onNavigate, o
   const showCards = format !== "text" && Boolean(settings?.cardConfig?.image);
   const auto = settings?.sendMode === "auto";
   const waSetup = whatsappSetupState(settings, waState);
+  const quietNow = settings?.pacing ? isQuietNow(now, settings.timezone, settings.pacing.quietHours) : false;
 
   const startRun = async (dryRun) => {
     if (!dryRun) {
+      const quietNote = quietNow
+        ? `\n\nIt's currently quiet hours (${settings.pacing.quietHours[0]}–${settings.pacing.quietHours[1]}) — these will be held and sent once quiet hours end, not right now.`
+        : "";
       const ok = window.confirm(
         `Send ${due.length} birthday message${due.length === 1 ? "" : "s"} on WhatsApp now?\n\n` +
-          "They go out spaced a little apart, so keep the app open until it finishes."
+          "They go out spaced a little apart, so keep the app open until it finishes." +
+          quietNote
       );
       if (!ok) return;
     }
@@ -169,6 +184,16 @@ export default function Home({ settings, waState, onSetupWhatsApp, onNavigate, o
             and the daily schedule depend on it being correct.
           </p>
           <button onClick={openClockSettings}>Fix clock</button>
+        </div>
+      )}
+
+      {quietNow && due.length > 0 && (
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--warn)" }}>
+            It&apos;s currently quiet hours ({settings.pacing.quietHours[0]}–{settings.pacing.quietHours[1]}). Anti-ban
+            pacing won&apos;t send anything until quiet hours end — if you press Send now, these will be held, not sent
+            right away.
+          </p>
         </div>
       )}
 

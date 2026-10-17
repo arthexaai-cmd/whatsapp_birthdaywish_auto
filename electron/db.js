@@ -41,12 +41,15 @@ export function openDb() {
   // already has -- fillMissingDefaults only adds, never overwrites.
   const existing = getAllSettings(db);
 
-  // An install from before pacingDefaultsVersion existed keeps its saved
-  // pacing, which would pin it to the old defaults forever. Move the fields
-  // the user never changed to the current defaults, once.
-  if (existing.pacing && existing.pacingDefaultsVersion == null) {
+  // An install whose saved pacingDefaultsVersion is missing or behind the
+  // current one would otherwise keep old pacing defaults forever. Move the
+  // fields the user never changed to the current defaults, then record the
+  // version so this doesn't re-run until it's bumped again.
+  if (existing.pacing && (existing.pacingDefaultsVersion == null || existing.pacingDefaultsVersion < DEFAULT_SETTINGS.pacingDefaultsVersion)) {
     existing.pacing = migratePacingToCurrentDefaults(existing.pacing);
     setSetting(db, "pacing", existing.pacing);
+    setSetting(db, "pacingDefaultsVersion", DEFAULT_SETTINGS.pacingDefaultsVersion);
+    existing.pacingDefaultsVersion = DEFAULT_SETTINGS.pacingDefaultsVersion;
   }
 
   // Same one-time move, but for default *template text*: offer the new
