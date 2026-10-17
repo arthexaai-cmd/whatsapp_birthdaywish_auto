@@ -32,6 +32,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "whatsapp-web.js": "^1.26.0",
+    "win-ca": "^3.5.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yaml": "^2.5.1"
   },
@@ -92,7 +93,8 @@
       "include": "build/installer.nsh"
     },
     "asarUnpack": [
-      "node_modules/@napi-rs/**"
+      "node_modules/@napi-rs/**",
+      "node_modules/win-ca/**"
     ]
   }
 }

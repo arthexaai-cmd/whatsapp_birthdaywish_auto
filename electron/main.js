@@ -21,6 +21,28 @@ import { installVirtualClock, startTestControlServer, installFakeWhatsappIfReque
 import { runManager } from "./runManager.js";
 import { whatsappManager } from "./whatsappManager.js";
 import { installLogFile } from "./logFile.js";
+import win_ca from "win-ca";
+
+// Some Windows machines (seen with certain antivirus suites and corporate
+// proxies) do TLS interception: they terminate HTTPS/SMTP TLS with their
+// own root CA and re-sign traffic. Windows trusts that CA because it's
+// installed in the Windows certificate store, but Node.js does not --
+// Node ships its own independent trust store and never consults Windows'.
+// The result was nodemailer's Gmail SMTP connection failing with
+// "self signed certificate in certificate chain" on every send on the
+// affected machine. win-ca reads the Windows cert store and merges it into
+// Node's trust store at startup ("+" mode is additive -- it keeps trusting
+// Node's own bundled CAs too, it doesn't replace them). This is Windows-only
+// and best-effort: if it throws for any reason (e.g. a locked-down machine,
+// or running outside Windows), log it and keep going with Node's original
+// trust store rather than block the app from starting.
+if (process.platform === "win32") {
+  try {
+    win_ca.inject("+");
+  } catch (err) {
+    console.error("[main] win-ca: could not import Windows certificates (non-fatal):", err);
+  }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = process.env.ELECTRON_DEV === "true";
