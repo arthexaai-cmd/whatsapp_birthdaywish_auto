@@ -104,7 +104,38 @@ describe("runEngine — message format", () => {
     expect(events.find((e) => e.phase === "card_fallback").error).toBe("font failed");
   });
 
-  it("a failed image send is retried once, then recorded as failed (no text fallback duplicate)", async () => {
+  it("falls back to the text wish when the card itself won't send", async () => {
+    const db = freshDb();
+    const waClient = createFakeWhatsappClient({ failMediaSend: ["919812345678"] });
+    const events = [];
+    const result = await run(db, "image", { waClient, renderCard: async () => JPEG, onProgress: (e) => events.push(e) });
+    expect(result.results[0].status).toBe("sent");
+    expect(waClient.sent).toHaveLength(1);
+    expect(waClient.sent[0].kind).toBe("text");
+    expect(waClient.sent[0].text).toMatch(/^Happy birthday/);
+    expect(events.find((e) => e.phase === "card_fallback").error).toBe("fake: media send failed");
+    expect(events.some((e) => e.phase === "send_failed")).toBe(false);
+  });
+
+  // The whole point of the fallback: a WhatsApp Web change that breaks every
+  // media send must not take the run down with it on the second person.
+  it("a broken media path never aborts the run under maxConsecutiveFailures", async () => {
+    const db = freshDb();
+    upsertContact(db, { name: "Second", phoneE164: "+919800000002", birthMonth: 3, birthDay: 14 });
+    upsertContact(db, { name: "Third", phoneE164: "+919800000003", birthMonth: 3, birthDay: 14 });
+    const waClient = createFakeWhatsappClient({
+      failMediaSend: ["919812345678", "919800000002", "919800000003"],
+    });
+    const events = [];
+    const result = await run(db, "both", { waClient, renderCard: async () => JPEG, onProgress: (e) => events.push(e) });
+    expect(result.results.map((r) => r.status)).toEqual(["sent", "sent", "sent"]);
+    expect(waClient.sent.every((s) => s.kind === "text")).toBe(true);
+    expect(events.some((e) => e.phase === "aborted_consecutive_failures")).toBe(false);
+    // Each person burns two card attempts before the fallback, and sendCard's
+    // typing simulation has a 1.5 s floor that pacing settings can't zero out.
+  }, 30_000);
+
+  it("records a failure only when the text fallback fails too", async () => {
     const db = freshDb();
     const waClient = createFakeWhatsappClient({ failSend: ["919812345678"] });
     const result = await run(db, "image", { waClient, renderCard: async () => JPEG });

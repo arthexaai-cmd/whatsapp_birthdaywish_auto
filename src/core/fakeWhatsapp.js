@@ -6,12 +6,19 @@
 //
 // Behaviour is scriptable per number (digits only, no "+"): not on WhatsApp,
 // lookup errors, send errors, and a per-send delay to keep a run "active".
+//
+// failMediaSend is deliberately separate from failSend: a broken media path
+// with a working text path is a real, recurring WhatsApp Web failure mode (the
+// card upload goes through far more of whatsapp-web.js's injected internals
+// than a plain text send does), and it is what the engine's card-to-text
+// fallback exists for, so it needs to be reproducible here.
 
 export function createFakeWhatsappClient(config = {}) {
   const cfg = {
     notOnWa: new Set(config.notOnWa ?? []),
     failLookup: new Set(config.failLookup ?? []),
     failSend: new Set(config.failSend ?? []),
+    failMediaSend: new Set(config.failMediaSend ?? []),
     sendDelayMs: config.sendDelayMs ?? 0,
   };
   const sent = [];
@@ -23,7 +30,7 @@ export function createFakeWhatsappClient(config = {}) {
     sent,
     lookups,
     configure(patch = {}) {
-      for (const key of ["notOnWa", "failLookup", "failSend"]) if (patch[key]) cfg[key] = new Set(patch[key]);
+      for (const key of ["notOnWa", "failLookup", "failSend", "failMediaSend"]) if (patch[key]) cfg[key] = new Set(patch[key]);
       if (patch.sendDelayMs !== undefined) cfg.sendDelayMs = patch.sendDelayMs;
     },
     async getNumberId(digits) {
@@ -41,6 +48,7 @@ export function createFakeWhatsappClient(config = {}) {
       if (cfg.sendDelayMs) await delay(cfg.sendDelayMs);
       if (cfg.failSend.has(digits)) throw new Error("fake: send failed");
       const isMedia = content && typeof content === "object";
+      if (isMedia && cfg.failMediaSend.has(digits)) throw new Error("fake: media send failed");
       sent.push(
         isMedia
           ? { chatId, digits, kind: "image", text: options.caption ?? "", caption: options.caption ?? null, media: { mimetype: content.mimetype, data: content.data }, at: new Date().toISOString() }

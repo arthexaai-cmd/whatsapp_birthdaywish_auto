@@ -240,11 +240,7 @@ export async function runEngine({
       }
 
       const card = await makeCard(person, settings, renderCard, onProgress);
-      const typing = settings.pacing.typingMsPerChar;
-      const send = card
-        ? () => sendCard(waClient, chatId, card, settings.messageFormat === "both" ? text : "", typing)
-        : () => sendWithTyping(waClient, chatId, text, typing);
-      await sendOnce(send, settings.retry, signal);
+      await sendWish({ waClient, chatId, card, text, settings, signal, person, onProgress });
       recordSend(db, {
         runId,
         contactId: person.id,
@@ -326,6 +322,42 @@ async function makeCard(person, settings, renderCard, onProgress) {
     console.error(`[engine] card for ${person.name} failed, sending text instead:`, err);
     onProgress({ phase: "card_fallback", person, error: err.message || String(err) });
     return null;
+  }
+}
+
+/**
+ * Send the wish: the card when there is one, otherwise plain text.
+ *
+ * A card that won't send must not cost someone their birthday wish. The media
+ * path is by far the most fragile one -- it goes through whatsapp-web.js's
+ * injected upload-and-build code, which breaks whenever WhatsApp Web changes
+ * its internals, while the plain-text path keeps working (that is exactly how
+ * the "Data passed to getter must include an id property" breakage behaved).
+ * So when the card send fails, fall back to the text wish rather than letting
+ * the person count as a failure -- which, two in a row, aborts the whole run
+ * under `maxConsecutiveFailures` and strands everyone still queued behind it.
+ *
+ * The fallback can in principle double-send, if the card actually arrived and
+ * only the acknowledgement failed. That risk is already accepted here:
+ * `sendOnce` retries a failed send for the same reason. A rare duplicate wish
+ * is a far smaller harm than a silently missed one.
+ *
+ * Cancellation is not a card problem, so an aborted signal propagates instead
+ * of quietly turning into a text send.
+ */
+async function sendWish({ waClient, chatId, card, text, settings, signal, person, onProgress }) {
+  const typing = settings.pacing.typingMsPerChar;
+  const sendText = () => sendWithTyping(waClient, chatId, text, typing);
+  if (!card) return sendOnce(sendText, settings.retry, signal);
+
+  const caption = settings.messageFormat === "both" ? text : "";
+  try {
+    await sendOnce(() => sendCard(waClient, chatId, card, caption, typing), settings.retry, signal);
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.error(`[engine] card send for ${person.name} failed, sending text instead:`, err);
+    onProgress({ phase: "card_fallback", person, error: err.message || String(err) });
+    await sendOnce(sendText, settings.retry, signal);
   }
 }
 

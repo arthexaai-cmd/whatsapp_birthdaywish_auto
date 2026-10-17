@@ -1,0 +1,23 @@
+diff --git a/node_modules/whatsapp-web.js/src/util/Injected/Utils.js b/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
+index 540078a..8f057f3 100644
+--- a/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
++++ b/node_modules/whatsapp-web.js/src/util/Injected/Utils.js
+@@ -483,6 +483,18 @@ exports.LoadUtils = () => {
+             ...extraOptions,
+         };
+ 
++        // processMediaData() returns a WhatsApp *model* instance, not a plain
++        // object, so the two mediaOptions spreads above carry the model's own
++        // identity with them: the `__x_id` backing field, and an `id` from
++        // toJSON(). Both land after `id: newMsgKey` and clobber it, so the Msg
++        // model below is constructed with the media's id instead of the
++        // message's -- or none at all. WhatsApp memoizes models by id and
++        // throws "Data passed to getter must include an id property (it's how
++        // we memoize) but got undefined", failing every media send.
++        // Re-assert the real key and drop the stray backing field.
++        delete message.__x_id;
++        message.id = newMsgKey;
++
+         // Bot's won't reply if canonicalUrl is set (linking)
+         if (botOptions) {
+             delete message.canonicalUrl;

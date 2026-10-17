@@ -16,7 +16,7 @@ Electron in commit `9eabcc3`. See [README.md](README.md) for user-facing docs.
 
 ```bash
 npm install
-npm test          # vitest run -- 447 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
+npm test          # vitest run -- 449 tests over src/core/ and src/ui/errors.js (plain Node, no Electron)
 npm run dev       # Vite (localhost:5190, strictPort) + Electron with ELECTRON_DEV=true
 npm run build     # vite build -> dist-ui/, then electron-builder NSIS -> dist-installer/
 ```
@@ -177,6 +177,20 @@ a test, not in `electron/`.
   as best-effort in try/catch — a failure there must never block
   `sendMessage()` (fixed in `c489185`). Log full errors with stack on send
   failures.
+- **whatsapp-web.js is patched** (`patches/whatsapp-web.js+1.34.7.patch`, applied
+  by the `postinstall` script via `patch-package` — don't drop that script, and
+  re-run `npx patch-package whatsapp-web.js` if you ever edit the patched file).
+  `processMediaData()` returns a WhatsApp *model*, so spreading it into the
+  outgoing message in `src/util/Injected/Utils.js` leaked `__x_id` and a
+  `toJSON()` `id` over the real `id: newMsgKey`, and every media send died with
+  "Data passed to getter must include an id property (it's how we memoize) but
+  got undefined". The patch re-asserts the key after the spreads. Text sends
+  were never affected. Bumping the dependency means regenerating the patch —
+  and checking upstream fixed it first.
+- A card that won't send falls back to the text wish (`sendWish` in
+  `engine.js`, `card_fallback` event) instead of counting as a failed send.
+  Without that, a WhatsApp-side media breakage aborts the whole run on the
+  second person via `maxConsecutiveFailures`.
 - Unhandled rejections from whatsapp-web.js teardown are logged, not fatal.
 - UI shows errors via `friendlyError()` in `src/ui/errors.js` (strips the IPC
   wrapper, maps known errors to plain language) — never render `err.message` raw.
