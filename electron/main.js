@@ -22,7 +22,11 @@ import { runManager } from "./runManager.js";
 import { whatsappManager } from "./whatsappManager.js";
 import { installLogFile } from "./logFile.js";
 import { safeSend } from "./safeSend.js";
-import win_ca from "win-ca/api";
+// Node's ESM loader (unlike CommonJS require) won't auto-resolve a bare
+// "win-ca/api" directory specifier to its index.js, so the file is named
+// explicitly here (confirmed broken as ERR_UNSUPPORTED_DIR_IMPORT on
+// Windows in 2.3.3 without this).
+import win_ca from "win-ca/api/index.js";
 
 // Some Windows machines (seen with certain antivirus suites and corporate
 // proxies) do TLS interception: they terminate HTTPS/SMTP TLS with their
