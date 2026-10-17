@@ -154,6 +154,16 @@ function createWindow() {
     console.error(`[renderer] process gone: ${JSON.stringify(details)}`);
   });
 
+  // Known Electron/Chromium focus bug (seen on Windows): after a native
+  // dialog closes (window.confirm's "Send all"/"Remove account" prompts,
+  // or switching back from another window, e.g. the WhatsApp browser), the
+  // window can regain OS focus without the page itself re-claiming keyboard
+  // focus -- clicks on a field still register (that's a separate hit-test
+  // layer) but typing goes nowhere until the user clicks away and back, or
+  // restarts. Re-focus webContents whenever the window regains OS focus so
+  // keystrokes route to the page again.
+  win.on("focus", () => win.webContents.focus());
+
   // Closing the window minimizes to tray instead of quitting, so the
   // scheduler keeps running in the background -- the whole point of the
   // tray. Only app.quit() (from the tray menu, or OS shutdown) really exits.
