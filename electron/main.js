@@ -21,7 +21,8 @@ import { installVirtualClock, startTestControlServer, installFakeWhatsappIfReque
 import { runManager } from "./runManager.js";
 import { whatsappManager } from "./whatsappManager.js";
 import { installLogFile } from "./logFile.js";
-import win_ca from "win-ca";
+import { safeSend } from "./safeSend.js";
+import win_ca from "win-ca/api";
 
 // Some Windows machines (seen with certain antivirus suites and corporate
 // proxies) do TLS interception: they terminate HTTPS/SMTP TLS with their
@@ -36,9 +37,16 @@ import win_ca from "win-ca";
 // and best-effort: if it throws for any reason (e.g. a locked-down machine,
 // or running outside Windows), log it and keep going with Node's original
 // trust store rather than block the app from starting.
+//
+// Imported via "win-ca/api" (not the bare "win-ca" entry) and called with no
+// `save`: the bare entry self-invokes at import time with save:true, which
+// writes a cache file (pem/roots.pem) relative to its own install folder --
+// fatal with EPERM when installed under Program Files, since a non-admin
+// process can't write there, and that write happens via an unguarded stream
+// before this try/catch even runs, so it was never actually catchable here.
 if (process.platform === "win32") {
   try {
-    win_ca.inject("+");
+    win_ca({ inject: "+" });
   } catch (err) {
     console.error("[main] win-ca: could not import Windows certificates (non-fatal):", err);
   }
@@ -201,7 +209,7 @@ async function main() {
       if (action === "remind") return remindIfDue(db, settings);
       if (action !== "send") return;
       if (runManager.isActive()) return; // a manual run is already going; don't collide
-      mainWindow?.webContents.send("run:autoStarted", { reason });
+      safeSend(mainWindow, "run:autoStarted", { reason });
       try {
         const result = await runManager.start({
           db,

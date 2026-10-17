@@ -5,10 +5,11 @@ import { ipcMain, app } from "electron";
 import { runManager } from "../runManager.js";
 import { getAllSettings } from "../../src/core/db.js";
 import { previewToday } from "../../src/core/engine.js";
+import { safeSend } from "../safeSend.js";
 
 export function registerRunIpc(db, mainWindow) {
   runManager.on("progress", (event) => {
-    mainWindow?.webContents.send("run:progress", event);
+    safeSend(mainWindow, "run:progress", event);
   });
 
   ipcMain.handle("run:previewToday", (event, { ignoreLedger = false } = {}) =>

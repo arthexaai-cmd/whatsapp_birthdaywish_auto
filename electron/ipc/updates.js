@@ -2,6 +2,7 @@
 // install; the main process decides whether installing is safe right now.
 
 import { ipcMain } from "electron";
+import { safeSend } from "../safeSend.js";
 
 /**
  * @param {import("../updater.js").Updater} updater
@@ -9,7 +10,7 @@ import { ipcMain } from "electron";
  * @param {() => {runActive: boolean, settings: object, nextFireAt: Date|null}} getInstallContext
  */
 export function registerUpdatesIpc(updater, mainWindow, getInstallContext) {
-  updater.on("state", (state) => mainWindow?.webContents.send("updates:state", state));
+  updater.on("state", (state) => safeSend(mainWindow, "updates:state", state));
 
   ipcMain.handle("updates:getState", () => updater.getState());
   ipcMain.handle("updates:check", () => updater.check());

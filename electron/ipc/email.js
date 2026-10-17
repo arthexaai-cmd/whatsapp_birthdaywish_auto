@@ -12,9 +12,10 @@ import { normalizeCardConfig } from "../../src/core/cardLayout.js";
 import { emailManager, createTransport, selectAccounts } from "../emailManager.js";
 import { deletePassword, hasPassword, setPassword } from "../emailSecret.js";
 import { cardPaths } from "../cardPaths.js";
+import { safeSend } from "../safeSend.js";
 
 export function registerEmailIpc(db, mainWindow) {
-  emailManager.on("progress", (event) => mainWindow?.webContents.send("email:progress", event));
+  emailManager.on("progress", (event) => safeSend(mainWindow, "email:progress", event));
 
   const accounts = () => normalizeAccounts(getSetting(db, "emailAccounts", []));
   const withFlags = (list) => list.map((a) => ({ ...a, hasPassword: hasPassword(a.id) }));

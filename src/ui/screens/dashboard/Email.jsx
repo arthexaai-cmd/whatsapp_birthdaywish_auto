@@ -39,7 +39,13 @@ function AccountForm({ initial, onSave, onCancel, busy }) {
         )}
         {f.preset === "outlook" && (
           <p className="muted" style={{ ...hint, marginTop: 6 }}>
-            Microsoft is switching off password sign-in for some accounts, so this may not work. Use <strong>Test connection</strong> after saving to find out.
+            <strong>Personal outlook.com / hotmail account:</strong> turn on two-step verification at <code>account.live.com</code>, then create an{" "}
+            <strong>app password</strong> there and paste it here instead of your normal password.
+            <br />
+            <strong>Work or school (Microsoft 365) account:</strong> many organizations turn this kind of sign-in off entirely for security, and you likely
+            can't re-enable it yourself — ask your IT admin, or use a personal Gmail or Outlook.com account instead.
+            <br />
+            Either way, use <strong>Test connection</strong> after saving to confirm it works.
           </p>
         )}
       </div>

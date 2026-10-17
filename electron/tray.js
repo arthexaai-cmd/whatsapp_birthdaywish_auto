@@ -6,6 +6,7 @@ import { Tray, Menu, nativeImage, app } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runManager } from "./runManager.js";
+import { safeSend } from "./safeSend.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -58,14 +59,14 @@ export function createTray({ getMainWindow, getScheduler, getSettings, onQuit, o
         click: () => {
           const win = getMainWindow();
           win?.show();
-          win?.webContents.send("tray:runNow");
+          safeSend(win, "tray:runNow");
         },
       },
       {
         label: settings.schedulingPaused ? "Resume scheduling" : "Pause scheduling",
         click: () => {
           const win = getMainWindow();
-          win?.webContents.send("tray:toggleScheduling");
+          safeSend(win, "tray:toggleScheduling");
         },
       },
       { label: "Check for updates", click: () => onCheckUpdates?.() },

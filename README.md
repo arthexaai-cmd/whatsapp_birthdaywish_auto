@@ -36,6 +36,29 @@ computer.
   Get started checklist — like a fresh install. You type `RESET` to confirm, and can export
   a report first. It can't be undone.
 
+## Email setup
+
+Birthday emails are a separate channel from WhatsApp (Email tab, own "Send
+emails" button — never sent automatically). Add a sender account there with
+your email address and an app password:
+
+- **Gmail**: turn on 2-Step Verification in your Google account, open
+  `myaccount.google.com/apppasswords`, create one called "Birthday Bot", and
+  paste the 16-letter code as the password. If you change your Google
+  password later, make a new app password.
+- **Outlook / Hotmail (personal account)**: turn on two-step verification at
+  `account.live.com`, then create an app password there and use that instead
+  of your normal password.
+- **Work or school (Microsoft 365) account**: many organizations disable
+  password-based sign-in for mail apps tenant-wide, and you likely can't
+  re-enable it yourself — ask your IT admin, or use a personal Gmail or
+  Outlook.com account instead.
+- **Other providers**: pick "Other", enter the mail server and port from
+  your provider, and use an app password if your provider requires one.
+
+Use **Test connection** after saving any account to confirm it works before
+relying on it.
+
 ## Testing safely
 
 The app always acts on today's date *as the computer's clock shows it*, and

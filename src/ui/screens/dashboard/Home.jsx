@@ -332,7 +332,11 @@ function describeEvent(e) {
     case "matched":
       return `${e.matchCount} birthday(s) matched.`;
     case "scheduled": {
-      const base = `Scheduled ${e.scheduledCount} send(s)${e.droppedByCap ? `, ${e.droppedByCap} deferred by daily cap` : ""}.`;
+      const base =
+        `Scheduled ${e.scheduledCount} send(s)` +
+        (e.droppedByCap ? `, ${e.droppedByCap} deferred by daily cap` : "") +
+        (e.deferredCount ? `, ${e.deferredCount} deferred until quiet hours end` : "") +
+        `.`;
       if (!e.firstSendAt || e.scheduledCount === 0) return base;
       const firstAt = new Date(e.firstSendAt);
       const waitMs = firstAt.getTime() - Date.now();

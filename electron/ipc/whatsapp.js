@@ -5,10 +5,11 @@ import { ipcMain, app } from "electron";
 import { whatsappManager } from "../whatsappManager.js";
 import { findSystemBrowser } from "../browser.js";
 import { setSetting } from "../../src/core/db.js";
+import { safeSend } from "../safeSend.js";
 
 export function registerWhatsappIpc(db, mainWindow) {
   whatsappManager.on("state", (state) => {
-    mainWindow?.webContents.send("whatsapp:state", state);
+    safeSend(mainWindow, "whatsapp:state", state);
   });
 
   ipcMain.handle("whatsapp:getState", () => whatsappManager.getState());
@@ -20,7 +21,7 @@ export function registerWhatsappIpc(db, mainWindow) {
 
   ipcMain.handle("whatsapp:downloadChromium", async (event) => {
     return whatsappManager.downloadChromium(app.getPath("userData"), (progress) => {
-      mainWindow?.webContents.send("whatsapp:downloadProgress", progress);
+      safeSend(mainWindow, "whatsapp:downloadProgress", progress);
     });
   });
 
